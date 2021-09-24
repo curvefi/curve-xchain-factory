@@ -20,6 +20,11 @@ event GaugeDeployed:
     _deployer: indexed(address)
     _gauge: address
 
+event ImplementationUpdated:
+    _chain_id: indexed(uint256)
+    _implementation: address
+    _new_implementation: address
+
 
 struct ChainData:
     implementation: address
@@ -100,6 +105,21 @@ def deploy_gauge(_chain_id: uint256) -> address:
 
     log GaugeDeployed(_chain_id, msg.sender, gauge)
     return gauge
+
+
+@external
+def set_implementation(_chain_id: uint256, _implementation: address):
+    """
+    @notice Set the root gauge implementation used for `_chain_id`
+    @param _chain_id The chain id of interest
+    @param _implementation The root gauge implementation contract address
+    """
+    assert msg.sender == self.owner
+
+    implementation: address = self.chain_data[_chain_id].implementation
+    self.chain_data[_chain_id].implementation = _implementation
+
+    log ImplementationUpdated(_chain_id, implementation, _implementation)
 
 
 @external
