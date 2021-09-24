@@ -7,9 +7,18 @@
 """
 
 
+interface RootGauge:
+    def initialize(): nonpayable
+
+
 event OwnershipTransferred:
     _owner: address
     _new_owner: address
+
+event GaugeDeployed:
+    _chain_id: indexed(uint256)
+    _deployer: indexed(address)
+    _gauge: address
 
 
 struct ChainData:
@@ -22,6 +31,8 @@ owner: public(address)
 future_owner: public(address)
 
 chain_data: HashMap[uint256, ChainData]
+# chain_id -> msg_sender -> nonce
+nonces: public(HashMap[uint256, HashMap[address, uint256]])
 
 
 @external
@@ -62,6 +73,33 @@ def get_gauge(_chain_id: uint256, _idx: uint256) -> address:
     @param _idx The index of the gauge to retrieve from `_chain_id`'s gauge list
     """
     return self.chain_data[_chain_id].gauges[_idx]
+
+
+@external
+def deploy_gauge(_chain_id: uint256) -> address:
+    """
+    @notice Deploy a root gauge for `_chain_id`
+    @param _chain_id The chain id of interest
+    @return The address of the deployed and initialized root gauge
+    """
+    # generate the salt used for CREATE2 deployment of gauge
+    nonce: uint256 = self.nonces[_chain_id][msg.sender]
+    salt: bytes32 = keccak256(_abi_encode(_chain_id, msg.sender, nonce))
+    gauge: address = create_forwarder_to(self.chain_data[_chain_id].implementation, salt=salt)
+
+    # increase the nonce of the deployer
+    self.nonces[_chain_id][msg.sender] = nonce + 1
+
+    # append the newly deployed gauge to list of chain's gauges
+    size: uint256 = self.chain_data[_chain_id].size
+    self.chain_data[_chain_id].gauges[size] = gauge
+    self.chain_data[_chain_id].size = size + 1
+
+    # initialize the gauge
+    RootGauge(gauge).initialize()
+
+    log GaugeDeployed(_chain_id, msg.sender, gauge)
+    return gauge
 
 
 @external
