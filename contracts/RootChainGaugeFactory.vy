@@ -8,7 +8,7 @@
 
 
 interface RootGauge:
-    def initialize(): nonpayable
+    def initialize(_chain_id: uint256, _deployer: address): nonpayable
 
 
 event OwnershipTransferred:
@@ -102,7 +102,7 @@ def deploy_gauge(_chain_id: uint256) -> address:
     self.chain_data[_chain_id].size = size + 1
 
     # initialize the gauge
-    RootGauge(gauge).initialize()
+    RootGauge(gauge).initialize(_chain_id, msg.sender)
 
     log GaugeDeployed(_chain_id, msg.sender, gauge)
     return gauge
