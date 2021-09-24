@@ -81,6 +81,7 @@ def get_gauge(_chain_id: uint256, _idx: uint256) -> address:
 
 
 @external
+@nonreentrant("lock")
 def deploy_gauge(_chain_id: uint256) -> address:
     """
     @notice Deploy a root gauge for `_chain_id`
