@@ -11,6 +11,7 @@ from vyper.interfaces import ERC20
 interface Factory:
     def owner() -> address: view
     def reward_token() -> address: view
+    def threshold() -> uint256: view
 
 
 event ReceiverUpdated:
@@ -102,6 +103,7 @@ def notify():
         if block.timestamp >= period_finish:
             self.rate = new_amount / WEEK
         else:
+            assert new_amount >= self.factory.threshold()  # dev: invalid minimum new amount
             remaining: uint256 = period_finish - block.timestamp
             leftover: uint256 = remaining * self.rate
             self.rate = (new_amount + leftover) / WEEK

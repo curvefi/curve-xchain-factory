@@ -36,12 +36,17 @@ get_streamer: public(address[MAX_INT128])
 nonces: public(HashMap[address, uint256])
 
 reward_token: public(address)
+threshold: public(uint256)
 
 
 @external
 def __init__(_reward_token: address):
     self.owner = msg.sender
     self.reward_token = _reward_token
+    # minimum amount of new rewards being deposited in order for
+    # `notify` to be called on child streamers. Prevents bad actors
+    # from calling `notify` without first donating 1_000 CRV
+    self.threshold = 1_000 * 10 ** 18
 
     log OwnershipTransferred(ZERO_ADDRESS, msg.sender)
 
