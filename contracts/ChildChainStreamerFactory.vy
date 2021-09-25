@@ -1,13 +1,13 @@
 # @version 0.2.16
 """
-@title Curve Child Chain Gauge Factory
+@title Curve Child Chain Streamer Factory
 @license MIT
 @author Curve.fi
-@notice Child chain gauge factory enabling permissionless deployment of cross chain gauges
+@notice Child chain streamer factory enabling permissionless deployment of cross chain streamers
 """
 
 
-interface ChildGauge:
+interface ChildStreamer:
     def initialize(_deployer: address, _receiver: address): nonpayable
 
 
@@ -15,9 +15,9 @@ event OwnershipTransferred:
     _owner: address
     _new_owner: address
 
-event GaugeDeployed:
+event StreamerDeployed:
     _deployer: indexed(address)
-    _gauge: address
+    _streamer: address
     _receiver: address
 
 event ImplementationUpdated:
@@ -31,7 +31,7 @@ future_owner: public(address)
 get_implementation: public(address)
 get_size: public(uint256)
 # Using MAX_UINT256 raises `Exception: Value too high`
-get_gauge: public(address[MAX_INT128])
+get_streamer: public(address[MAX_INT128])
 
 nonces: public(HashMap[address, uint256])
 
@@ -45,37 +45,37 @@ def __init__():
 
 @external
 @nonreentrant("lock")
-def deploy_gauge(_receiver: address) -> address:
+def deploy_streamer(_receiver: address) -> address:
     """
-    @notice Deploy a child gauge
-    @param _receiver Rewards receiver for the child gauge
-    @return The address of the deployed and initialized child gauge
+    @notice Deploy a child streamer
+    @param _receiver Rewards receiver for the child streamer
+    @return The address of the deployed and initialized child streamer
     """
     # generate the salt used for CREATE2 deployment of gauge
     nonce: uint256 = self.nonces[msg.sender]
     salt: bytes32 = keccak256(_abi_encode(chain.id, msg.sender, nonce))
-    gauge: address = create_forwarder_to(self.get_implementation, salt=salt)
+    streamer: address = create_forwarder_to(self.get_implementation, salt=salt)
 
     # increase the nonce of the deployer
     self.nonces[msg.sender] = nonce + 1
 
     # append the newly deployed gauge to list of chain's gauges
     size: uint256 = self.get_size
-    self.get_gauge[size] = gauge
+    self.get_streamer[size] = streamer
     self.get_size = size + 1
 
     # initialize the gauge
-    ChildGauge(gauge).initialize(msg.sender, _receiver)
+    ChildStreamer(streamer).initialize(msg.sender, _receiver)
 
-    log GaugeDeployed(msg.sender, gauge, _receiver)
-    return gauge
+    log StreamerDeployed(msg.sender, streamer, _receiver)
+    return streamer
 
 
 @external
 def set_implementation(_implementation: address):
     """
-    @notice Set the child gauge implementation
-    @param _implementation The child gauge implementation contract address
+    @notice Set the child streamer implementation
+    @param _implementation The child streamer implementation contract address
     """
     assert msg.sender == self.owner
 

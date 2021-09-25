@@ -12,10 +12,10 @@ def mock_root_gauge_implementation(alice, MockRootGauge):
 
 
 @pytest.fixture(scope="module")
-def child_factory(alice, ChildChainGaugeFactory):
-    return ChildChainGaugeFactory.deploy({"from": alice})
+def child_factory(alice, ChildChainStreamerFactory):
+    return ChildChainStreamerFactory.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
-def mock_child_gauge_implementation(alice, MockChildGauge):
-    return MockChildGauge.deploy({"from": alice})
+def mock_child_streamer_implementation(alice, MockChildStreamer):
+    return MockChildStreamer.deploy({"from": alice})

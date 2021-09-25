@@ -1,6 +1,6 @@
 # @version 0.2.16
 """
-@title Curve Child Gauge Mock Implementation
+@title Curve Child Streamer Mock Implementation
 @license MIT
 @author Curve.fi
 """
