@@ -65,6 +65,14 @@ def _update():
 
 
 @external
+def get_reward():
+    """
+    @notice Claim pending rewards for `reward_receiver`
+    """
+    self._update()
+
+
+@external
 def initialize(_deployer: address, _receiver: address):
     assert self.receiver == ZERO_ADDRESS
 
