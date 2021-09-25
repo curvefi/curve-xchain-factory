@@ -9,6 +9,7 @@
 
 interface StreamerFactory:
     def owner() -> address: view
+    def reward_token() -> address: view
 
 
 event OwnershipTransferred:
