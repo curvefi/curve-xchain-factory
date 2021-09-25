@@ -1,4 +1,5 @@
 import pytest
+from brownie_tokens import ERC20
 
 
 @pytest.fixture(scope="module")
@@ -12,8 +13,13 @@ def mock_root_gauge_implementation(alice, MockRootGauge):
 
 
 @pytest.fixture(scope="module")
-def child_factory(alice, ChildChainStreamerFactory):
-    return ChildChainStreamerFactory.deploy({"from": alice})
+def reward_token(alice):
+    return ERC20(deployer=alice)
+
+
+@pytest.fixture(scope="module")
+def child_factory(alice, reward_token, ChildChainStreamerFactory):
+    return ChildChainStreamerFactory.deploy(reward_token, {"from": alice})
 
 
 @pytest.fixture(scope="module")
