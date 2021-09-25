@@ -30,7 +30,38 @@ rate: public(uint256)
 # [period_finish uint128][last_update uint128]
 time_data: uint256
 # [received uint128][paid uint128]
-balance_data: uint256
+reward_data: uint256
+
+
+@internal
+def _update():
+    # load time data from storage
+    time_data: uint256 = self.time_data
+    last_update: uint256 = time_data % 2 ** 128
+    period_finish: uint256 = shift(time_data, -128)
+
+    # check the last time rewards were to be distributed
+    last_time: uint256 = min(block.timestamp, period_finish)
+    # if we have new rewards to distribute
+    if last_time > last_update:
+        # get the amount to distribute in this call
+        amount: uint256 = (last_time - last_update) * self.rate
+        if amount > 0:
+            # update reward data with the amount paid
+            self.reward_data += amount
+            # safeTransfer out the rewards
+            response: Bytes[32] = raw_call(
+                self.factory.reward_token(),
+                _abi_encode(
+                    self.receiver, amount, method_id=method_id("transfer(address,uint256)")
+                ),
+                max_outsize=32,
+            )
+            if len(response) != 0:
+                assert convert(response, bool)
+
+    # change our last update time
+    self.time_data = shift(period_finish, 128) + block.timestamp
 
 
 @external
@@ -78,7 +109,7 @@ def reward_received() -> uint256:
     """
     @notice Query the total amount of `reward_token` received
     """
-    return shift(self.balance_data, -128)
+    return shift(self.reward_data, -128)
 
 
 @view
@@ -87,4 +118,4 @@ def reward_paid() -> uint256:
     """
     @notice Query the total amount of `reward_token` paid out
     """
-    return self.balance_data % 2 ** 128
+    return self.reward_data % 2 ** 128
