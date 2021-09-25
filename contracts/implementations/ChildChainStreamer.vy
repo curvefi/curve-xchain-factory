@@ -15,12 +15,23 @@ event OwnershipTransferred:
 owner: public(address)
 future_owner: public(address)
 
+is_initialized: public(bool)
+
 
 @external
 def __init__():
     self.owner = msg.sender
+    # prevent the implementation from being initialized
+    self.is_initialized = True
 
     log OwnershipTransferred(ZERO_ADDRESS, msg.sender)
+
+
+@external
+def initialize(_deployer: address, _receiver: address):
+    assert not self.is_initialized  # dev: already initialized
+
+    self.is_initialized = True
 
 
 @external
