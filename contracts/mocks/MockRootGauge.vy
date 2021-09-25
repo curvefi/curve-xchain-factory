@@ -7,5 +7,5 @@
 
 
 @external
-def initialize(_chain_id: uint256, _deployer: uint256):
+def initialize(_chain_id: uint256, _deployer: address):
     pass

@@ -1,4 +1,5 @@
 import pytest
+from brownie.convert import to_address
 from hexbytes import HexBytes
 
 
@@ -43,6 +44,6 @@ def create2_address_of(keccak):
         addr = HexBytes(_addr)
         salt = HexBytes(_salt)
         initcode = HexBytes(_initcode)
-        return keccak(prefix + addr + salt + keccak(initcode))[12:]
+        return to_address(keccak(prefix + addr + salt + keccak(initcode))[12:])
 
     return _f
