@@ -18,6 +18,7 @@ event OwnershipTransferred:
 event GaugeDeployed:
     _deployer: indexed(address)
     _gauge: address
+    _receiver: address
 
 event ImplementationUpdated:
     _implementation: address
@@ -66,7 +67,7 @@ def deploy_gauge(_receiver: address) -> address:
     # initialize the gauge
     ChildGauge(gauge).initialize(msg.sender, _receiver)
 
-    log GaugeDeployed(msg.sender, gauge)
+    log GaugeDeployed(msg.sender, gauge, _receiver)
     return gauge
 
 
