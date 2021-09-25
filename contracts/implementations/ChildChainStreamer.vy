@@ -77,6 +77,11 @@ def get_reward():
 def notify():
     """
     @notice Notify the contract of a newly received reward
+    @dev Callable by anyone, if new tokens have been received. The reward tokens
+        must be transferred into the contract prior to calling this function.
+        Rewards are distributed over a WEEK. Updating the reward amount while an
+        existing reward period is active causes the remaining rewards to be evenly
+        distributed over the new period.
     """
     self._update()
 
@@ -109,6 +114,16 @@ def notify():
 
 
 @external
+def set_receiver(_receiver: address):
+    assert msg.sender == self.factory.owner()
+
+    old_receiver: address = self.receiver
+    self.receiver = _receiver
+
+    log ReceiverUpdated(old_receiver, _receiver)
+
+
+@external
 def initialize(_deployer: address, _receiver: address):
     assert self.receiver == ZERO_ADDRESS
 
@@ -117,16 +132,6 @@ def initialize(_deployer: address, _receiver: address):
     self.receiver = _receiver
 
     log ReceiverUpdated(ZERO_ADDRESS, _receiver)
-
-
-@external
-def set_receiver(_receiver: address):
-    assert msg.sender == self.factory.owner()
-
-    old_receiver: address = self.receiver
-    self.receiver = _receiver
-
-    log ReceiverUpdated(old_receiver, _receiver)
 
 
 @view
