@@ -1,5 +1,6 @@
 black
 eth-brownie
+brownie-token-tester
 flake8
 isort
 pip-tools

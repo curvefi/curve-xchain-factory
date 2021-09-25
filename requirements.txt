@@ -41,6 +41,8 @@ black==21.9b0
     # via
     #   -r requirements.in
     #   eth-brownie
+brownie-token-tester==0.3.2
+    # via -r requirements.in
 certifi==2021.5.30
     # via
     #   eth-brownie
@@ -85,7 +87,9 @@ eth-account==0.5.5
     #   eth-brownie
     #   web3
 eth-brownie==1.16.4
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   brownie-token-tester
 eth-event==1.2.3
     # via eth-brownie
 eth-hash[pycryptodome]==0.3.2
