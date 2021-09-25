@@ -24,8 +24,6 @@ event ReceiverUpdated:
 owner: public(address)
 future_owner: public(address)
 
-is_initialized: public(bool)
-
 # values set when initialized
 streamer_factory: public(address)
 deployer: public(address)
@@ -35,17 +33,13 @@ receiver: public(address)
 @external
 def __init__():
     self.owner = msg.sender
-    # prevent the implementation from being initialized
-    self.is_initialized = True
 
     log OwnershipTransferred(ZERO_ADDRESS, msg.sender)
 
 
 @external
 def initialize(_deployer: address, _receiver: address):
-    assert not self.is_initialized  # dev: already initialized
-
-    self.is_initialized = True
+    assert self.receiver == ZERO_ADDRESS
 
     self.streamer_factory = msg.sender
     self.deployer = _deployer
