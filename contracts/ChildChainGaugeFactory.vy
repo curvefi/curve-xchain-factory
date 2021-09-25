@@ -8,7 +8,7 @@
 
 
 interface ChildGauge:
-    def initialize(_deployer: address): nonpayable
+    def initialize(_deployer: address, _receiver: address): nonpayable
 
 
 event OwnershipTransferred:
@@ -44,9 +44,10 @@ def __init__():
 
 @external
 @nonreentrant("lock")
-def deploy_gauge() -> address:
+def deploy_gauge(_receiver: address) -> address:
     """
     @notice Deploy a child gauge
+    @param _receiver Rewards receiver for the child gauge
     @return The address of the deployed and initialized child gauge
     """
     # generate the salt used for CREATE2 deployment of gauge
@@ -63,7 +64,7 @@ def deploy_gauge() -> address:
     self.get_size = size + 1
 
     # initialize the gauge
-    ChildGauge(gauge).initialize(msg.sender)
+    ChildGauge(gauge).initialize(msg.sender, _receiver)
 
     log GaugeDeployed(msg.sender, gauge)
     return gauge
