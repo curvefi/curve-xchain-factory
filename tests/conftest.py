@@ -1,6 +1,6 @@
 import pytest
 
-pytest_plugins = ["fixtures.accounts", "fixtures.deployments"]
+pytest_plugins = ["fixtures.accounts", "fixtures.deployments", "fixtures.functions"]
 
 
 @pytest.fixture(scope="module", autouse=True)
