@@ -7,7 +7,7 @@
 """
 
 
-interface StreamerFactory:
+interface Factory:
     def owner() -> address: view
     def reward_token() -> address: view
 
@@ -18,7 +18,7 @@ event ReceiverUpdated:
 
 
 # values set when initialized
-streamer_factory: public(address)
+factory: public(Factory)
 deployer: public(address)
 receiver: public(address)
 
@@ -27,7 +27,7 @@ receiver: public(address)
 def initialize(_deployer: address, _receiver: address):
     assert self.receiver == ZERO_ADDRESS
 
-    self.streamer_factory = msg.sender
+    self.factory = Factory(msg.sender)
     self.deployer = _deployer
     self.receiver = _receiver
 
@@ -36,7 +36,7 @@ def initialize(_deployer: address, _receiver: address):
 
 @external
 def set_receiver(_receiver: address):
-    assert msg.sender == StreamerFactory(self.streamer_factory).owner()
+    assert msg.sender == self.factory.owner()
 
     old_receiver: address = self.receiver
     self.receiver = _receiver
