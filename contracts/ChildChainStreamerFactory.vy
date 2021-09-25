@@ -35,10 +35,13 @@ get_streamer: public(address[MAX_INT128])
 
 nonces: public(HashMap[address, uint256])
 
+reward_token: public(address)
+
 
 @external
-def __init__():
+def __init__(_reward_token: address):
     self.owner = msg.sender
+    self.reward_token = _reward_token
 
     log OwnershipTransferred(ZERO_ADDRESS, msg.sender)
 
