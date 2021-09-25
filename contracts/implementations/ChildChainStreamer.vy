@@ -7,15 +7,28 @@
 """
 
 
+interface StreamerFactory:
+    def owner() -> address: view
+
+
 event OwnershipTransferred:
     _owner: address
     _new_owner: address
+
+event ReceiverUpdated:
+    _old_receiver: address
+    _new_receiver: address
 
 
 owner: public(address)
 future_owner: public(address)
 
 is_initialized: public(bool)
+
+# values set when initialized
+streamer_factory: public(address)
+deployer: public(address)
+receiver: public(address)
 
 
 @external
@@ -32,6 +45,22 @@ def initialize(_deployer: address, _receiver: address):
     assert not self.is_initialized  # dev: already initialized
 
     self.is_initialized = True
+
+    self.streamer_factory = msg.sender
+    self.deployer = _deployer
+    self.receiver = _receiver
+
+    log ReceiverUpdated(ZERO_ADDRESS, _receiver)
+
+
+@external
+def set_receiver(_receiver: address):
+    assert msg.sender == StreamerFactory(self.streamer_factory).owner()
+
+    old_receiver: address = self.receiver
+    self.receiver = _receiver
+
+    log ReceiverUpdated(old_receiver, _receiver)
 
 
 @external
