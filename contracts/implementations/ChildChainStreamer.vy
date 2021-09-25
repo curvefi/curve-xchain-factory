@@ -5,6 +5,7 @@
 @author Curve.fi
 @notice Child chain streamer implementation
 """
+from vyper.interfaces import ERC20
 
 
 interface Factory:
@@ -67,9 +68,44 @@ def _update():
 @external
 def get_reward():
     """
-    @notice Claim pending rewards for `reward_receiver`
+    @notice Claim pending rewards for `receiver`
     """
     self._update()
+
+
+@external
+def notify():
+    """
+    @notice Notify the contract of a newly received reward
+    """
+    self._update()
+
+    # load period finish time
+    period_finish: uint256 = shift(self.time_data, -128)
+
+    # load reward data
+    reward_data: uint256 = self.reward_data
+    paid: uint256 = reward_data % 2 ** 128
+    received: uint256 = shift(reward_data, -128)
+
+    expected_balance: uint256 = received - paid
+    actual_balance: uint256 = ERC20(self.factory.reward_token()).balanceOf(self)
+
+    if actual_balance > expected_balance:
+        new_amount: uint256 = actual_balance - expected_balance
+
+        if block.timestamp >= period_finish:
+            self.rate = new_amount / WEEK
+        else:
+            remaining: uint256 = period_finish - block.timestamp
+            leftover: uint256 = remaining * self.rate
+            self.rate = (new_amount + leftover) / WEEK
+
+        self.time_data = shift(block.timestamp + WEEK, 128) + block.timestamp
+        self.reward_data = shift(received + new_amount, 128) + paid
+        return
+
+    raise "No new rewards received"
 
 
 @external
