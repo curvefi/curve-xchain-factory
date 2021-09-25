@@ -7,9 +7,17 @@
 """
 
 
+interface ChildGauge:
+    def initialize(_deployer: address): nonpayable
+
+
 event OwnershipTransferred:
     _owner: address
     _new_owner: address
+
+event GaugeDeployed:
+    _deployer: indexed(address)
+    _gauge: address
 
 event ImplementationUpdated:
     _implementation: address
@@ -21,7 +29,10 @@ future_owner: public(address)
 
 get_implementation: public(address)
 get_size: public(uint256)
-get_gauge: public(address[MAX_UINT256])
+# Using MAX_UINT256 raises `Exception: Value too high`
+get_gauge: public(address[MAX_INT128])
+
+nonces: public(HashMap[address, uint256])
 
 
 @external
@@ -29,6 +40,33 @@ def __init__():
     self.owner = msg.sender
 
     log OwnershipTransferred(ZERO_ADDRESS, msg.sender)
+
+
+@external
+@nonreentrant("lock")
+def deploy_gauge() -> address:
+    """
+    @notice Deploy a child gauge
+    @return The address of the deployed and initialized child gauge
+    """
+    # generate the salt used for CREATE2 deployment of gauge
+    nonce: uint256 = self.nonces[msg.sender]
+    salt: bytes32 = keccak256(_abi_encode(chain.id, msg.sender, nonce))
+    gauge: address = create_forwarder_to(self.get_implementation, salt=salt)
+
+    # increase the nonce of the deployer
+    self.nonces[msg.sender] = nonce + 1
+
+    # append the newly deployed gauge to list of chain's gauges
+    size: uint256 = self.get_size
+    self.get_gauge[size] = gauge
+    self.get_size = size + 1
+
+    # initialize the gauge
+    ChildGauge(gauge).initialize(msg.sender)
+
+    log GaugeDeployed(msg.sender, gauge)
+    return gauge
 
 
 @external
