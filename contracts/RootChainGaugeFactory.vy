@@ -28,8 +28,8 @@ event ImplementationUpdated:
 
 struct ChainData:
     implementation: address
-    gauges: address[MAX_UINT256]
     size: uint256
+    gauges: address[MAX_UINT256]
 
 
 owner: public(address)
