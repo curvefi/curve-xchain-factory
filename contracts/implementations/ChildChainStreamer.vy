@@ -37,6 +37,10 @@ reward_data: uint256
 
 @internal
 def _update():
+    """
+    @dev Update the distribution data and payout the recipient by transferring
+        tokens eligible to be paid out up to `block.timestamp`
+    """
     # load time data from storage
     time_data: uint256 = self.time_data
     last_update: uint256 = time_data % 2 ** 128
@@ -117,6 +121,11 @@ def notify():
 
 @external
 def set_receiver(_receiver: address):
+    """
+    @notice Set the reward receiver
+    @dev Only callable by the factory owner
+    @param _receiver The new account to distribute rewards to
+    """
     assert msg.sender == self.factory.owner()
 
     old_receiver: address = self.receiver
@@ -127,6 +136,11 @@ def set_receiver(_receiver: address):
 
 @external
 def initialize(_deployer: address, _receiver: address):
+    """
+    @notice Initializer for deployed proxies
+    @param _deployer The account which initiated the deployment & initialization
+    @param _receiver The account which will receive the rewards over the reward period
+    """
     assert self.receiver == ZERO_ADDRESS
 
     self.factory = Factory(msg.sender)
