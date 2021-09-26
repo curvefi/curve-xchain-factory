@@ -8,6 +8,9 @@
 from vyper.interfaces import ERC20
 
 
+interface Factory:
+    def owner() -> address: view
+
 interface CRV20:
     def start_epoch_time_write() -> uint256: nonpayable
     def rate() -> uint256: view
@@ -29,12 +32,6 @@ event PeriodEmission:
     period_start: uint256
     mint_amount: uint256
 
-event CommitOwnership:
-    admin: address
-
-event ApplyOwnership:
-    admin: address
-
 
 WEEK: constant(uint256) = 604800
 YEAR: constant(uint256) = 86400 * 365
@@ -52,8 +49,7 @@ period: public(uint256)
 emissions: public(uint256)
 inflation_rate: public(uint256)
 
-admin: public(address)
-future_admin: public(address)  # Can and will be a smart contract
+factory: public(Factory)
 is_killed: public(bool)
 
 checkpoint_admin: public(address)
@@ -63,9 +59,7 @@ anyswap_bridge: public(address)
 @external
 def __init__(
     _minter: address,
-    _admin: address,
     _anyswap_bridge: address,
-    _checkpoint_admin: address,
 ):
     """
     @notice Contract constructor
@@ -78,11 +72,9 @@ def __init__(
     crv_token: address = Minter(_minter).token()
 
     self.minter = _minter
-    self.admin = _admin
     self.crv_token = crv_token
     self.controller = Minter(_minter).controller()
     self.anyswap_bridge = _anyswap_bridge
-    self.checkpoint_admin = _checkpoint_admin
 
     # because we calculate the rate locally, this gauge cannot
     # be used prior to the start of the first emission period
@@ -100,7 +92,6 @@ def checkpoint() -> bool:
     @notice Mint all allocated CRV emissions and transfer across the bridge
     @dev Should be called once per week, after the new epoch period has begun
     """
-    assert self.checkpoint_admin in [ZERO_ADDRESS, msg.sender]
     last_period: uint256 = self.period
     current_period: uint256 = block.timestamp / WEEK - 1
 
@@ -173,42 +164,6 @@ def set_killed(_is_killed: bool):
     @dev When killed, the gauge always yields a rate of 0 and so cannot mint CRV
     @param _is_killed Killed status to set
     """
-    assert msg.sender == self.admin  # dev: admin only
+    assert msg.sender == self.factory.owner()  # dev: admin only
 
     self.is_killed = _is_killed
-
-
-@external
-def commit_transfer_ownership(addr: address):
-    """
-    @notice Transfer ownership of GaugeController to `addr`
-    @param addr Address to have ownership transferred to
-    """
-    assert msg.sender == self.admin  # dev: admin only
-
-    self.future_admin = addr
-    log CommitOwnership(addr)
-
-
-@external
-def accept_transfer_ownership():
-    """
-    @notice Accept a pending ownership transfer
-    """
-    _admin: address = self.future_admin
-    assert msg.sender == _admin  # dev: future admin only
-
-    self.admin = _admin
-    log ApplyOwnership(_admin)
-
-
-@external
-def set_checkpoint_admin(_admin: address):
-    """
-    @notice Set the checkpoint admin address
-    @dev Setting to ZERO_ADDRESS allows anyone to call `checkpoint`
-    @param _admin Address of the checkpoint admin
-    """
-    assert msg.sender == self.admin  # dev: admin only
-
-    self.checkpoint_admin = _admin
