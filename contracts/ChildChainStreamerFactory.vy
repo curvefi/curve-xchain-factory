@@ -59,6 +59,8 @@ def deploy_streamer(_receiver: address) -> address:
     @param _receiver Rewards receiver for the child streamer
     @return The address of the deployed and initialized child streamer
     """
+    assert _receiver != ZERO_ADDRESS
+
     # generate the salt used for CREATE2 deployment of gauge
     nonce: uint256 = self.nonces[msg.sender]
     salt: bytes32 = keccak256(_abi_encode(chain.id, msg.sender, nonce))
