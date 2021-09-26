@@ -25,3 +25,8 @@ def child_factory(alice, reward_token, ChildChainStreamerFactory):
 @pytest.fixture(scope="module")
 def mock_child_streamer_implementation(alice, MockChildStreamer):
     return MockChildStreamer.deploy({"from": alice})
+
+
+@pytest.fixture(scope="module")
+def child_streamer_implementation(alice, ChildChainStreamer):
+    return ChildChainStreamer.deploy({"from": alice})
