@@ -33,6 +33,9 @@ event PeriodEmission:
     mint_amount: uint256
 
 
+MINTER: constant(address) = ZERO_ADDRESS
+ANYSWAP_BRIDGE: constant(address) = ZERO_ADDRESS
+
 WEEK: constant(uint256) = 604800
 YEAR: constant(uint256) = 86400 * 365
 RATE_DENOMINATOR: constant(uint256) = 10 ** 18
@@ -57,24 +60,16 @@ anyswap_bridge: public(address)
 
 
 @external
-def __init__(
-    _minter: address,
-    _anyswap_bridge: address,
-):
-    """
-    @notice Contract constructor
-    @param _minter Minter contract address
-    @param _admin Admin who can kill the gauge
-    @param _anyswap_bridge Address of the AnySwap bridge where CRV is transferred
-    @param _checkpoint_admin Address of the checkpoint admin
-    """
+def initialize(_chain_id: uint256, _deployer: address):
+    assert self.crv_token == ZERO_ADDRESS
 
-    crv_token: address = Minter(_minter).token()
+    crv_token: address = Minter(MINTER).token()
 
-    self.minter = _minter
+    self.factory = Factory(msg.sender)
+    self.minter = MINTER
     self.crv_token = crv_token
-    self.controller = Minter(_minter).controller()
-    self.anyswap_bridge = _anyswap_bridge
+    self.controller = Minter(MINTER).controller()
+    self.anyswap_bridge = ANYSWAP_BRIDGE
 
     # because we calculate the rate locally, this gauge cannot
     # be used prior to the start of the first emission period
