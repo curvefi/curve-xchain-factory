@@ -34,6 +34,7 @@ RATE_REDUCTION_TIME: constant(uint256) = YEAR
 get_implementation: public(address)
 
 inflation_params: public(InflationParams)
+voting_escrow: public(address)
 
 owner: public(address)
 future_owner: public(address)
@@ -76,6 +77,18 @@ def inflation_params_write() -> InflationParams:
     @notice Query the inflation params and update them if necessary
     """
     return self._updated_inflation_params()
+
+
+@external
+def set_voting_escrow(_voting_escrow: address):
+    """
+    @notice Update the voting escrow contract
+    @param Contract to use as the voting escrow oracle
+    """
+    assert msg.sender == self.owner  # dev: only owner
+
+    log UpdateVotingEscrow(self.voting_escrow, _voting_escrow)
+    self.voting_escrow = _voting_escrow
 
 
 @external
