@@ -59,7 +59,7 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
     @param _chain_id The chain identifier of the counterpart child gauge
     @param _salt A value to deterministically deploy a gauge
     """
-    assert self.get_bridger[_chain_id] != ZERO_ADDRESS
+    assert self.get_bridger[_chain_id] != ZERO_ADDRESS  # dev: chain id not supported
 
     implementation: address = self.get_implementation
     gauge: address = create_forwarder_to(
@@ -83,7 +83,7 @@ def set_bridger(_chain_id: uint256, _bridger: address):
     @param _chain_id The chain identifier to set the bridger for
     @param _bridger The bridger contract to use
     """
-    assert msg.sender == self.owner
+    assert msg.sender == self.owner  # dev: only owner
 
     log BridgerUpdated(_chain_id, self.get_bridger[_chain_id], _bridger)
     self.get_bridger[_chain_id] = _bridger
@@ -95,7 +95,7 @@ def set_implementation(_implementation: address):
     @notice Set the implementation
     @param _implementation The address of the implementation to use
     """
-    assert msg.sender == self.owner
+    assert msg.sender == self.owner  # dev: only owner
 
     log UpdateImplementation(self.get_implementation, _implementation)
     self.get_implementation = _implementation
