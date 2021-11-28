@@ -8,7 +8,7 @@
 
 interface CRV20:
     def rate() -> uint256: view
-    def start_epoch_time_write() -> uint256: nonpayable
+    def future_epoch_time_write() -> uint256: nonpayable
 
 interface RootLiquidityGauge:
     def initialize(_chain_id: uint256, _inflation_params: InflationParams): nonpayable
@@ -42,11 +42,10 @@ event UpdateImplementation:
 
 struct InflationParams:
     rate: uint256
-    start_time: uint256
+    finish_time: uint256
 
 
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-RATE_REDUCTION_TIME: constant(uint256) = 86400 * 365
 
 
 get_bridger: public(HashMap[uint256, address])
@@ -69,7 +68,7 @@ def __init__(_implementation: address):
 
     inflation_params: InflationParams = InflationParams({
         rate: CRV20(CRV).rate(),
-        start_time: CRV20(CRV).start_epoch_time_write()
+        finish_time: CRV20(CRV).future_epoch_time_write()
     })
 
     self.inflation_params = inflation_params
@@ -82,10 +81,10 @@ def __init__(_implementation: address):
 @internal
 def _updated_inflation_params() -> InflationParams:
     inflation_params: InflationParams = self.inflation_params
-    if block.timestamp >= inflation_params.start_time + RATE_REDUCTION_TIME:
+    if block.timestamp >= inflation_params.finish_time:
         new_params: InflationParams = InflationParams({
             rate: CRV20(CRV).rate(),
-            start_time: CRV20(CRV).start_epoch_time_write()
+            finish_time: CRV20(CRV).future_epoch_time_write()
         })
         self.inflation_params = new_params
         log InflationParamsUpdated(block.timestamp, inflation_params, new_params)
