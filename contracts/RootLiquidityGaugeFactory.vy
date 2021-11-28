@@ -6,22 +6,36 @@
 """
 
 
+interface RootLiquidityGauge:
+    def initialize(_chain_id: uint256): nonpayable
+
+
 event BridgerUpdated:
     _chain_id: indexed(uint256)
     _old_bridger: address
     _new_bridger: address
 
-event UpdateImplementation:
-    _old_implementation: address
-    _new_implementation: address
+event DeployedGauge:
+    _implementation: indexed(address)
+    _chain_id: indexed(uint256)
+    _deployer: indexed(address)
+    _salt: bytes32
+    _gauge: address
 
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
+event UpdateImplementation:
+    _old_implementation: address
+    _new_implementation: address
+
 
 get_bridger: public(HashMap[uint256, address])
 get_implementation: public(address)
+
+get_gauge: public(HashMap[uint256, address[MAX_UINT256]])
+get_gauge_count: public(HashMap[uint256, uint256])
 
 owner: public(address)
 future_owner: public(address)
@@ -35,6 +49,31 @@ def __init__(_implementation: address):
 
     self.owner = msg.sender
     log TransferOwnership(ZERO_ADDRESS, msg.sender)
+
+
+@payable
+@external
+def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
+    """
+    @notice Deploy a root liquidity gauge
+    @param _chain_id The chain identifier of the counterpart child gauge
+    @param _salt A value to deterministically deploy a gauge
+    """
+    assert self.get_bridger[_chain_id] != ZERO_ADDRESS
+
+    implementation: address = self.get_implementation
+    gauge: address = create_forwarder_to(
+        implementation, value=msg.value, salt=keccak256(_abi_encode(_chain_id, msg.sender, _salt))
+    )
+
+    idx: uint256 = self.get_gauge_count[_chain_id]
+    self.get_gauge[_chain_id][idx] = gauge
+    self.get_gauge_count[_chain_id] = idx + 1
+
+    RootLiquidityGauge(gauge).initialize(_chain_id)
+
+    log DeployedGauge(implementation, _chain_id, msg.sender, _salt, gauge)
+    return gauge
 
 
 @external
