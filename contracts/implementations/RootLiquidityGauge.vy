@@ -12,6 +12,7 @@ interface GaugeController:
 
 interface Factory:
     def inflation_params_write() -> InflationParams: nonpayable
+    def owner() -> address: view
 
 
 struct InflationParams:
@@ -30,6 +31,8 @@ inflation_params: public(InflationParams)
 last_period: public(uint256)
 total_emissions: public(uint256)
 
+is_killed: public(bool)
+
 
 @external
 def __init__():
@@ -39,11 +42,23 @@ def __init__():
 @internal
 def _updated_inflation_params() -> InflationParams:
     inflation_params: InflationParams = self.inflation_params
-    if block.timestamp >= inflation_params.finish_time:
+    if block.timestamp >= inflation_params.finish_time and not self.is_killed:
         inflation_params = Factory(self.factory).inflation_params_write()
         self.inflation_params = inflation_params
         return inflation_params
     return inflation_params
+
+
+@view
+@external
+def integrate_fraction(_user: address) -> uint256:
+    """
+    @notice Query the total emissions `_user` is entitled to
+    @dev Any value of `_user` other than the gauge address will return 0
+    """
+    if _user == self:
+        return self.total_emissions
+    return 0
 
 
 @external
@@ -58,7 +73,7 @@ def user_checkpoint(_user: address) -> bool:
     current_period: uint256 = block.timestamp / WEEK
 
     # only checkpoint if the current period is greater than the last period
-    # last period is always less than current period and we only calculate
+    # last period is always less than or equal to current period and we only calculate
     # emissions up to current period (not including it)
     if last_period != current_period:
         # checkpoint the gauge filling in any missing weight data
@@ -91,6 +106,21 @@ def user_checkpoint(_user: address) -> bool:
         self.total_emissions += emissions
 
     return True
+
+
+@external
+def set_killed(_is_killed: bool):
+    """
+    @notice Set the gauge kill status
+    @dev Inflation params are modified accordingly to disable/enable emissions
+    """
+    assert msg.sender == Factory(self.factory).owner()
+
+    if _is_killed:
+        self.inflation_params = empty(InflationParams)
+    else:
+        self.inflation_params = Factory(self.factory).inflation_params_write()
+    self.is_killed = _is_killed
 
 
 @external
