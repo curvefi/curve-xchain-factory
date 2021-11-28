@@ -6,8 +6,12 @@
 """
 
 
+interface CRV20:
+    def rate() -> uint256: view
+    def start_epoch_time_write() -> uint256: nonpayable
+
 interface RootLiquidityGauge:
-    def initialize(_chain_id: uint256): nonpayable
+    def initialize(_chain_id: uint256, _inflation_params: InflationParams): nonpayable
 
 
 event BridgerUpdated:
@@ -22,6 +26,11 @@ event DeployedGauge:
     _salt: bytes32
     _gauge: address
 
+event InflationParamsUpdated:
+    _timestamp: uint256
+    _old_params: InflationParams
+    _new_params: InflationParams
+
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
@@ -31,11 +40,22 @@ event UpdateImplementation:
     _new_implementation: address
 
 
+struct InflationParams:
+    rate: uint256
+    start_time: uint256
+
+
+CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
+RATE_REDUCTION_TIME: constant(uint256) = 86400 * 365
+
+
 get_bridger: public(HashMap[uint256, address])
 get_implementation: public(address)
 
 get_gauge: public(HashMap[uint256, address[MAX_UINT256]])
 get_gauge_count: public(HashMap[uint256, uint256])
+
+inflation_params: public(InflationParams)
 
 owner: public(address)
 future_owner: public(address)
@@ -47,8 +67,31 @@ def __init__(_implementation: address):
         self.get_implementation = _implementation
         log UpdateImplementation(ZERO_ADDRESS, _implementation)
 
+    inflation_params: InflationParams = InflationParams({
+        rate: CRV20(CRV).rate(),
+        start_time: CRV20(CRV).start_epoch_time_write()
+    })
+
+    self.inflation_params = inflation_params
+    log InflationParamsUpdated(block.timestamp, empty(InflationParams), inflation_params)
+
     self.owner = msg.sender
     log TransferOwnership(ZERO_ADDRESS, msg.sender)
+
+
+@internal
+def _updated_inflation_params() -> InflationParams:
+    inflation_params: InflationParams = self.inflation_params
+    if block.timestamp >= inflation_params.start_time + RATE_REDUCTION_TIME:
+        new_params: InflationParams = InflationParams({
+            rate: CRV20(CRV).rate(),
+            start_time: CRV20(CRV).start_epoch_time_write()
+        })
+        self.inflation_params = new_params
+        log InflationParamsUpdated(block.timestamp, inflation_params, new_params)
+        return new_params
+
+    return inflation_params
 
 
 @payable
@@ -70,10 +113,18 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
     self.get_gauge[_chain_id][idx] = gauge
     self.get_gauge_count[_chain_id] = idx + 1
 
-    RootLiquidityGauge(gauge).initialize(_chain_id)
+    RootLiquidityGauge(gauge).initialize(_chain_id, self._updated_inflation_params())
 
     log DeployedGauge(implementation, _chain_id, msg.sender, _salt, gauge)
     return gauge
+
+
+@external
+def inflation_params_write() -> InflationParams:
+    """
+    @notice Query the inflation params and update them if necessary
+    """
+    return self._updated_inflation_params()
 
 
 @external
