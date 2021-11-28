@@ -6,10 +6,16 @@
 """
 
 
+event UpdateImplementation:
+    _old_implementation: address
+    _new_implementation: address
+
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
+
+get_implementation: public(address)
 
 owner: public(address)
 future_owner: public(address)
@@ -19,6 +25,18 @@ future_owner: public(address)
 def __init__():
     self.owner = msg.sender
     log TransferOwnership(ZERO_ADDRESS, msg.sender)
+
+
+@external
+def set_implementation(_implementation: address):
+    """
+    @notice Set the implementation
+    @param _implementation The address of the implementation to use
+    """
+    assert msg.sender == self.owner  # dev: only owner
+
+    log UpdateImplementation(self.get_implementation, _implementation)
+    self.get_implementation = _implementation
 
 
 @external
