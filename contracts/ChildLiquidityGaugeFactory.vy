@@ -28,6 +28,10 @@ event UpdateImplementation:
     _old_implementation: address
     _new_implementation: address
 
+event UpdateMinter:
+    _old_minter: address
+    _new_minter: address
+
 event UpdateVotingEscrow:
     _old_voting_escrow: address
     _new_voting_escrow: address
@@ -51,6 +55,7 @@ RATE_REDUCTION_TIME: constant(uint256) = YEAR
 get_implementation: public(address)
 
 inflation_params: public(InflationParams)
+minter: public(address)
 voting_escrow: public(address)
 
 owner: public(address)
@@ -126,6 +131,17 @@ def inflation_params_write() -> InflationParams:
     @notice Query the inflation params and update them if necessary
     """
     return self._updated_inflation_params()
+
+
+@external
+def set_minter(_minter: address):
+    """
+    @notice Set the minter address
+    """
+    assert msg.sender == self.owner  # dev: only owner
+
+    log UpdateMinter(self.minter, _minter)
+    self.minter = _minter
 
 
 @external
