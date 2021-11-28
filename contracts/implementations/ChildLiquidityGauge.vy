@@ -9,6 +9,13 @@ from vyper.interfaces import ERC20
 implements: ERC20
 
 
+interface ERC20Extended:
+    def symbol() -> String[26]: view
+
+interface Factory:
+    def voting_escrow() -> address: view
+
+
 event Approval:
     _owner: indexed(address)
     _spender: indexed(address)
@@ -20,12 +27,24 @@ event Transfer:
     _value: uint256
 
 
-name: public(String[128])
-symbol: public(String[64])
+struct InflationParams:
+    rate: uint256
+    finish_time: uint256
+
+
+name: public(String[64])
+symbol: public(String[32])
 
 allowance: public(HashMap[address, HashMap[address, uint256]])
 balanceOf: public(HashMap[address, uint256])
 totalSupply: public(uint256)
+
+factory: public(address)
+inflation_params: public(InflationParams)
+lp_token: public(address)
+manager: public(address)
+
+voting_escrow: public(address)
 
 
 @external
@@ -124,3 +143,27 @@ def decimals() -> uint256:
     @notice Returns the number of decimals the token uses
     """
     return 18
+
+
+@external
+def update_voting_escrow():
+    """
+    @notice Update the voting escrow contract in storage
+    """
+    self.voting_escrow = Factory(self.factory).voting_escrow()
+
+
+@external
+def initialize(_lp_token: address, _manager: address, _inflation_params: InflationParams):
+    assert self.factory == ZERO_ADDRESS  # dev: already initialzed
+
+    self.factory = msg.sender
+    self.inflation_params = _inflation_params
+    self.lp_token = _lp_token
+    self.manager = _manager
+
+    self.voting_escrow = Factory(msg.sender).voting_escrow()
+
+    symbol: String[26] = ERC20Extended(_lp_token).symbol()
+    self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
+    self.symbol = concat(symbol, "-gauge")
