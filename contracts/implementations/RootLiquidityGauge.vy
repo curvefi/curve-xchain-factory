@@ -6,13 +6,25 @@
 """
 
 
+interface Bridger:
+    def bridge_cost() -> uint256: view
+    def transmit(_token: address, _amount: uint256): payable
+
+interface ERC20:
+    def balanceOf(_account: address) -> uint256: view
+    def approve(_account: address, _value: uint256): nonpayable
+
 interface GaugeController:
     def checkpoint_gauge(addr: address): nonpayable
     def gauge_relative_weight(addr: address, time: uint256) -> uint256: view
 
 interface Factory:
+    def get_bridger(_chain_id: uint256) -> address: view
     def inflation_params_write() -> InflationParams: nonpayable
     def owner() -> address: view
+
+interface Minter:
+    def mint(_gauge: address): nonpayable
 
 
 struct InflationParams:
@@ -20,7 +32,9 @@ struct InflationParams:
     finish_time: uint256
 
 
+CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
+MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
 WEEK: constant(uint256) = 86400 * 7
 
 
@@ -39,6 +53,12 @@ def __init__():
     self.factory = 0x000000000000000000000000000000000000dEaD
 
 
+@payable
+@external
+def __default__():
+    pass
+
+
 @internal
 def _updated_inflation_params() -> InflationParams:
     inflation_params: InflationParams = self.inflation_params
@@ -47,6 +67,23 @@ def _updated_inflation_params() -> InflationParams:
         self.inflation_params = inflation_params
         return inflation_params
     return inflation_params
+
+
+@external
+def transmit_emissions() -> uint256:
+    """
+    @notice Mint any new emissions and bridge across to child gauge
+    """
+    amount: uint256 = ERC20(CRV).balanceOf(self)
+    Minter(MINTER).mint(self)
+    amount = ERC20(CRV).balanceOf(self) - amount
+
+    # check delta to prevent spam attacks
+    if amount != 0:
+        bridger: address = Factory(self.factory).get_bridger(self.chain_id)
+        ERC20(CRV).approve(bridger, amount)
+        Bridger(bridger).transmit(CRV, amount, value=Bridger(bridger).bridge_cost())
+    return amount
 
 
 @view
