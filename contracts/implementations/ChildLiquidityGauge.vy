@@ -226,15 +226,6 @@ def decreaseAllowance(_spender: address, _subtracted_value: uint256) -> bool:
     return True
 
 
-@view
-@external
-def decimals() -> uint256:
-    """
-    @notice Returns the number of decimals the token uses
-    """
-    return 18
-
-
 @external
 def update_voting_escrow():
     """
@@ -273,3 +264,12 @@ def initialize(_lp_token: address, _manager: address, _inflation_params: Inflati
     symbol: String[26] = ERC20Extended(_lp_token).symbol()
     self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
     self.symbol = concat(symbol, "-gauge")
+
+
+@view
+@external
+def decimals() -> uint256:
+    """
+    @notice Returns the number of decimals the token uses
+    """
+    return 18
