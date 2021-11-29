@@ -34,10 +34,20 @@ event Withdraw:
     _user: indexed(address)
     _value: uint256
 
+event UpdateLiquidityLimit:
+    _user: indexed(address)
+    _original_balance: uint256
+    _original_supply: uint256
+    _working_balance: uint256
+    _working_supply: uint256
+
 
 struct InflationParams:
     rate: uint256
     finish_time: uint256
+
+
+TOKENLESS_PRODUCTION: constant(uint256) = 40
 
 
 name: public(String[64])
@@ -53,11 +63,40 @@ lp_token: public(address)
 manager: public(address)
 
 voting_escrow: public(address)
+working_balances: public(HashMap[address, uint256])
+working_supply: public(uint256)
 
 
 @external
 def __init__():
     self.factory = 0x000000000000000000000000000000000000dEaD
+
+
+@internal
+def _update_liquidity_limit(_user: address, _user_balance: uint256, _total_supply: uint256):
+    """
+    @notice Calculate working balances to apply amplification of CRV production.
+    @dev https://resources.curve.fi/guides/boosting-your-crv-rewards#formula
+    @param _user The user address
+    @param _user_balance User's amount of liquidity (LP tokens)
+    @param _total_supply Total amount of liquidity (LP tokens)
+    """
+    working_balance: uint256 = _user_balance * TOKENLESS_PRODUCTION / 100
+
+    ve: address = self.voting_escrow
+    if ve != ZERO_ADDRESS:
+        ve_ts: uint256 = ERC20(ve).totalSupply()
+        if ve_ts != 0:
+            working_balance += _total_supply * ERC20(ve).balanceOf(_user) / ve_ts * (100 - TOKENLESS_PRODUCTION) / 100
+            working_balance = min(_user_balance, working_balance)
+
+    old_working_balance: uint256 = self.working_balances[_user]
+    self.working_balances[_user] = working_balance
+
+    working_supply: uint256 = self.working_supply + working_balance - old_working_balance
+    self.working_supply = working_supply
+
+    log UpdateLiquidityLimit(_user, _user_balance, _total_supply, working_balance, working_supply)
 
 
 @external
