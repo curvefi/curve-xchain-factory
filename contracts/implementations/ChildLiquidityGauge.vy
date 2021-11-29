@@ -26,6 +26,14 @@ event Transfer:
     _to: indexed(address)
     _value: uint256
 
+event Deposit:
+    _user: indexed(address)
+    _value: uint256
+
+event Withdraw:
+    _user: indexed(address)
+    _value: uint256
+
 
 struct InflationParams:
     rate: uint256
@@ -45,6 +53,45 @@ lp_token: public(address)
 manager: public(address)
 
 voting_escrow: public(address)
+
+
+@external
+def __init__():
+    self.factory = 0x000000000000000000000000000000000000dEaD
+
+
+@external
+def deposit(_value: uint256, _user: address = msg.sender):
+    """
+    @notice Deposit `_value` LP tokens
+    @param _value Number of tokens to deposit
+    @param _user The account to send gauge tokens to
+    """
+    if _value == 0:
+        return
+    self.balanceOf[_user] += _value
+    self.totalSupply += _value
+
+    ERC20(self.lp_token).transferFrom(msg.sender, self, _value)
+    log Deposit(_user, _value)
+    log Transfer(ZERO_ADDRESS, _user, _value)
+
+
+@external
+def withdraw(_value: uint256, _user: address = msg.sender):
+    """
+    @notice Withdraw `_value` LP tokens
+    @param _value Number of tokens to withdraw
+    @param _user The account to send LP tokens to
+    """
+    if _value == 0:
+        return
+    self.balanceOf[msg.sender] -= _value
+    self.totalSupply -= _value
+
+    ERC20(self.lp_token).transferFrom(self, _user, _value)
+    log Withdraw(_user, _value)
+    log Transfer(msg.sender, ZERO_ADDRESS, _value)
 
 
 @external
