@@ -17,6 +17,10 @@ interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
 
+interface GaugeController:
+    def gauge_relative_weight(_gauge: address, _time: uint256) -> uint256: view
+    def checkpoint_gauge(_gauge: address): nonpayable
+
 
 event Approval:
     _owner: indexed(address)
@@ -49,7 +53,9 @@ struct InflationParams:
     finish_time: uint256
 
 
+GAUGE_CONTROLLER: constant(address) = ZERO_ADDRESS
 TOKENLESS_PRODUCTION: constant(uint256) = 40
+WEEK: constant(uint256) = 86400 * 7
 
 
 name: public(String[64])
@@ -68,12 +74,84 @@ voting_escrow: public(address)
 working_balances: public(HashMap[address, uint256])
 working_supply: public(uint256)
 
+period: public(uint256)
+period_timestamp: public(HashMap[uint256, uint256])
+
+integrate_checkpoint_of: public(HashMap[address, uint256])
+integrate_fraction: public(HashMap[address, uint256])
+integrate_inv_supply: public(HashMap[uint256, uint256])
+integrate_inv_supply_of: public(HashMap[address, uint256])
+
 is_killed: public(bool)
 
 
 @external
 def __init__():
     self.factory = 0x000000000000000000000000000000000000dEaD
+
+
+@internal
+def _updated_inflation_params() -> InflationParams:
+    inflation_params: InflationParams = self.inflation_params
+    if block.timestamp >= inflation_params.finish_time and not self.is_killed:
+        inflation_params = Factory(self.factory).inflation_params_write()
+        self.inflation_params = inflation_params
+        return inflation_params
+    return inflation_params
+
+
+@internal
+def _checkpoint(_user: address):
+    """
+    @notice Checkpoint a user calculating their CRV entitlement
+    @param _user User address
+    """
+    period: uint256 = self.period
+    period_time: uint256 = self.period_timestamp[period]
+    integrate_inv_supply: uint256 = self.integrate_inv_supply[period]
+
+    params: InflationParams = self.inflation_params
+
+    if block.timestamp > period_time:
+        GaugeController(GAUGE_CONTROLLER).checkpoint_gauge(self)
+
+        working_supply: uint256 = self.working_supply
+        prev_week_time: uint256 = period_time
+        week_time: uint256 = min((period_time / WEEK + 1) * WEEK, block.timestamp)
+
+        for i in range(256):
+            delta: uint256 = week_time - prev_week_time
+            weight: uint256 = GaugeController(GAUGE_CONTROLLER).gauge_relative_weight(self, prev_week_time)
+
+            if working_supply > 0:
+                if prev_week_time <= params.finish_time and params.finish_time < week_time:
+                    # fetch new inflation params
+                    new_params: InflationParams = self._updated_inflation_params()
+
+                    # calculate using old rate
+                    integrate_inv_supply += params.rate * weight * (params.finish_time - prev_week_time) / working_supply
+                    # calculate using new rate
+                    integrate_inv_supply += new_params.rate * weight * (week_time - params.finish_time) / working_supply
+
+                    # overwrite params variable
+                    params = new_params
+                else:
+                    integrate_inv_supply += params.rate * weight * delta / working_supply
+
+                if week_time == block.timestamp:
+                    break
+                prev_week_time = week_time
+                week_time = min(week_time + WEEK, block.timestamp)
+
+    period += 1
+    self.period = period
+    self.period_timestamp[period] = block.timestamp
+    self.integrate_inv_supply[period] = integrate_inv_supply
+
+    working_balance: uint256 = self.working_balances[_user]
+    self.integrate_fraction[_user] += working_balance * (integrate_inv_supply - self.integrate_inv_supply_of[_user]) / 10 ** 18
+    self.integrate_inv_supply_of[_user] = integrate_inv_supply
+    self.integrate_checkpoint_of[_user] = block.timestamp
 
 
 @internal
