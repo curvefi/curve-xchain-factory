@@ -133,9 +133,15 @@ def user_checkpoint(_user: address) -> bool:
                 # is applied for the rest of the periods. This means the gauge
                 # will receive less emissions, however it also means the gauge
                 # hasn't been called in over a year.
+                new_params: InflationParams = self._updated_inflation_params()  # mutates storage
+
+                # calculate with old rate
                 emissions += weight * params.rate * (params.finish_time - period_time) / 10 ** 18
-                params = self._updated_inflation_params()
-                emissions += weight * params.rate * (period_time + WEEK - params.finish_time) / 10 ** 18
+                # calculate with new rate
+                emissions += weight * new_params.rate * (period_time + WEEK - params.finish_time) / 10 ** 18
+
+                # overwrite nonlocal params variable
+                params = new_params
             else:
                 emissions += weight * params.rate * WEEK / 10 ** 18
 
