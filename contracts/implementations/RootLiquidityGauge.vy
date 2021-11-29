@@ -151,12 +151,13 @@ def set_killed(_is_killed: bool):
     @notice Set the gauge kill status
     @dev Inflation params are modified accordingly to disable/enable emissions
     """
-    assert msg.sender == Factory(self.factory).owner()
+    factory: address = self.factory
+    assert msg.sender == Factory(factory).owner()
 
     if _is_killed:
         self.inflation_params = empty(InflationParams)
     else:
-        self.inflation_params = Factory(self.factory).inflation_params_write()
+        self.inflation_params = Factory(factory).inflation_params_write()
     self.is_killed = _is_killed
 
 

@@ -13,6 +13,8 @@ interface ERC20Extended:
     def symbol() -> String[26]: view
 
 interface Factory:
+    def inflation_params_write() -> InflationParams: nonpayable
+    def owner() -> address: view
     def voting_escrow() -> address: view
 
 
@@ -65,6 +67,8 @@ manager: public(address)
 voting_escrow: public(address)
 working_balances: public(HashMap[address, uint256])
 working_supply: public(uint256)
+
+is_killed: public(bool)
 
 
 @external
@@ -237,6 +241,22 @@ def update_voting_escrow():
     @notice Update the voting escrow contract in storage
     """
     self.voting_escrow = Factory(self.factory).voting_escrow()
+
+
+@external
+def set_killed(_is_killed: bool):
+    """
+    @notice Set the kill status of the gauge
+    @param _is_killed Kill status to put the gauge into
+    """
+    factory: address = self.factory
+    assert msg.sender == Factory(factory).owner()
+
+    if _is_killed:
+        self.inflation_params = empty(InflationParams)
+    else:
+        self.inflation_params = Factory(factory).inflation_params_write()
+    self.is_killed = _is_killed
 
 
 @external
