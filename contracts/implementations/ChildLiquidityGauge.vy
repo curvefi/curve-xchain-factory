@@ -13,7 +13,6 @@ interface ERC20Extended:
     def symbol() -> String[26]: view
 
 interface Factory:
-    def inflation_params_write() -> InflationParams: nonpayable
     def owner() -> address: view
     def voting_escrow() -> address: view
 
@@ -48,11 +47,6 @@ event UpdateLiquidityLimit:
     _working_supply: uint256
 
 
-struct InflationParams:
-    rate: uint256
-    finish_time: uint256
-
-
 GAUGE_CONTROLLER: constant(address) = ZERO_ADDRESS
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
@@ -66,7 +60,6 @@ balanceOf: public(HashMap[address, uint256])
 totalSupply: public(uint256)
 
 factory: public(address)
-inflation_params: public(InflationParams)
 lp_token: public(address)
 manager: public(address)
 
@@ -91,16 +84,6 @@ def __init__():
 
 
 @internal
-def _updated_inflation_params() -> InflationParams:
-    inflation_params: InflationParams = self.inflation_params
-    if block.timestamp >= inflation_params.finish_time and not self.is_killed:
-        inflation_params = Factory(self.factory).inflation_params_write()
-        self.inflation_params = inflation_params
-        return inflation_params
-    return inflation_params
-
-
-@internal
 def _checkpoint(_user: address):
     """
     @notice Checkpoint a user calculating their CRV entitlement
@@ -109,8 +92,6 @@ def _checkpoint(_user: address):
     period: uint256 = self.period
     period_time: uint256 = self.period_timestamp[period]
     integrate_inv_supply: uint256 = self.integrate_inv_supply[period]
-
-    params: InflationParams = self.inflation_params
 
     if block.timestamp > period_time:
         GaugeController(GAUGE_CONTROLLER).checkpoint_gauge(self)
@@ -124,19 +105,7 @@ def _checkpoint(_user: address):
             weight: uint256 = GaugeController(GAUGE_CONTROLLER).gauge_relative_weight(self, prev_week_time)
 
             if working_supply > 0:
-                if prev_week_time <= params.finish_time and params.finish_time < week_time:
-                    # fetch new inflation params
-                    new_params: InflationParams = self._updated_inflation_params()
-
-                    # calculate using old rate
-                    integrate_inv_supply += params.rate * weight * (params.finish_time - prev_week_time) / working_supply
-                    # calculate using new rate
-                    integrate_inv_supply += new_params.rate * weight * (week_time - params.finish_time) / working_supply
-
-                    # overwrite params variable
-                    params = new_params
-                else:
-                    integrate_inv_supply += params.rate * weight * delta / working_supply
+                # TODO: calculate integrate_inv_supply +/-
 
                 if week_time == block.timestamp:
                     break
@@ -318,22 +287,18 @@ def set_killed(_is_killed: bool):
     @notice Set the kill status of the gauge
     @param _is_killed Kill status to put the gauge into
     """
-    factory: address = self.factory
-    assert msg.sender == Factory(factory).owner()
+    assert msg.sender == Factory(self.factory).owner()
 
-    if _is_killed:
-        self.inflation_params = empty(InflationParams)
-    else:
-        self.inflation_params = Factory(factory).inflation_params_write()
     self.is_killed = _is_killed
 
 
 @external
-def initialize(_lp_token: address, _manager: address, _inflation_params: InflationParams):
+def initialize(_lp_token: address, _manager: address):
     assert self.factory == ZERO_ADDRESS  # dev: already initialzed
+    self._checkpoint(ZERO_ADDRESS)
+    self._update_liquidity_limit(ZERO_ADDRESS, 0, 0)
 
     self.factory = msg.sender
-    self.inflation_params = _inflation_params
     self.lp_token = _lp_token
     self.manager = _manager
 
