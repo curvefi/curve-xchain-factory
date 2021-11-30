@@ -21,10 +21,6 @@ event UpdateImplementation:
     _old_implementation: address
     _new_implementation: address
 
-event UpdateMinter:
-    _old_minter: address
-    _new_minter: address
-
 event UpdateVotingEscrow:
     _old_voting_escrow: address
     _new_voting_escrow: address
