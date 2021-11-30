@@ -7,8 +7,12 @@
 
 
 interface Bridger:
-    def bridge_cost() -> uint256: view
-    def transmit(_token: address, _amount: uint256): payable
+    def cost() -> uint256: view
+    def transmit(_token: address, _destination: address, _amount: uint256): payable
+
+interface CRV20:
+    def rate() -> uint256: view
+    def future_epoch_time_write() -> uint256: nonpayable
 
 interface ERC20:
     def balanceOf(_account: address) -> uint256: view
@@ -20,7 +24,6 @@ interface GaugeController:
 
 interface Factory:
     def get_bridger(_chain_id: uint256) -> address: view
-    def inflation_params_write() -> InflationParams: nonpayable
     def owner() -> address: view
 
 interface Minter:
@@ -32,13 +35,19 @@ struct InflationParams:
     finish_time: uint256
 
 
+WEEK: constant(uint256) = 604800
+YEAR: constant(uint256) = 86400 * 365
+RATE_DENOMINATOR: constant(uint256) = 10 ** 18
+RATE_REDUCTION_COEFFICIENT: constant(uint256) = 1189207115002721024  # 2 ** (1/4) * 1e18
+RATE_REDUCTION_TIME: constant(uint256) = YEAR
+
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
 MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
-WEEK: constant(uint256) = 86400 * 7
 
 
 chain_id: public(uint256)
+bridger: public(address)
 factory: public(address)
 inflation_params: public(InflationParams)
 
@@ -59,31 +68,18 @@ def __default__():
     pass
 
 
-@internal
-def _updated_inflation_params() -> InflationParams:
-    inflation_params: InflationParams = self.inflation_params
-    if block.timestamp >= inflation_params.finish_time and not self.is_killed:
-        inflation_params = Factory(self.factory).inflation_params_write()
-        self.inflation_params = inflation_params
-        return inflation_params
-    return inflation_params
-
-
 @external
-def transmit_emissions() -> uint256:
+def transmit():
     """
-    @notice Mint any new emissions and bridge across to child gauge
+    @notice Mint any new emissions and transmit across to child gauge
     """
-    amount: uint256 = ERC20(CRV).balanceOf(self)
-    Minter(MINTER).mint(self)
-    amount = ERC20(CRV).balanceOf(self) - amount
+    minted: uint256 = self.total_emissions
+    Minter(MINTER).mint(self)  # mutates storage via user_checkpoint
+    minted = self.total_emissions - minted
 
-    # check delta to prevent spam attacks
-    if amount != 0:
-        bridger: address = Factory(self.factory).get_bridger(self.chain_id)
-        ERC20(CRV).approve(bridger, amount)
-        Bridger(bridger).transmit(CRV, amount, value=Bridger(bridger).bridge_cost())
-    return amount
+    assert minted != 0  # dev: nothing minted
+    bridger: address = self.bridger
+    Bridger(bridger).transmit(CRV, self, minted, value=Bridger(bridger).cost())
 
 
 @view
@@ -128,20 +124,16 @@ def user_checkpoint(_user: address) -> bool:
             weight: uint256 = GaugeController(GAUGE_CONTROLLER).gauge_relative_weight(self, period_time)
 
             if period_time <= params.finish_time and params.finish_time < period_time + WEEK:
-                # if we cross multiple epochs, the rate of the first epoch is
-                # applied until it ends, and then the rate of the last epoch
-                # is applied for the rest of the periods. This means the gauge
-                # will receive less emissions, however it also means the gauge
-                # hasn't been called in over a year.
-                new_params: InflationParams = self._updated_inflation_params()  # mutates storage
-
                 # calculate with old rate
                 emissions += weight * params.rate * (params.finish_time - period_time) / 10 ** 18
+                # update rate
+                params.rate = params.rate * RATE_DENOMINATOR / RATE_REDUCTION_COEFFICIENT
                 # calculate with new rate
-                emissions += weight * new_params.rate * (period_time + WEEK - params.finish_time) / 10 ** 18
-
-                # overwrite nonlocal params variable
-                params = new_params
+                emissions += weight * params.rate * (period_time + WEEK - params.finish_time) / 10 ** 18
+                # update finish time
+                params.finish_time += RATE_REDUCTION_TIME
+                # update storage
+                self.inflation_params = params
             else:
                 emissions += weight * params.rate * WEEK / 10 ** 18
 
@@ -161,17 +153,44 @@ def set_killed(_is_killed: bool):
     assert msg.sender == Factory(factory).owner()
 
     if _is_killed:
-        self.inflation_params = empty(InflationParams)
+        self.inflation_params.rate = 0
     else:
-        self.inflation_params = Factory(factory).inflation_params_write()
+        self.inflation_params = InflationParams({
+            rate: CRV20(CRV).rate(),
+            finish_time: CRV20(CRV).future_epoch_time_write()
+        })
+        self.last_period = block.timestamp / WEEK
     self.is_killed = _is_killed
 
 
 @external
-def initialize(_chain_id: uint256, _inflation_params: InflationParams):
+def update_bridger():
+    """
+    @notice Update the bridger used by this contract
+    @dev Bridger contracts should prevent briding if ever updated
+    """
+    ERC20(CRV).approve(self.bridger, 0)
+
+    bridger: address = Factory(self.factory).get_bridger(self.chain_id)
+    self.bridger = bridger
+    ERC20(CRV).approve(bridger, MAX_UINT256)
+
+
+@external
+def initialize(_bridger: address, _chain_id: uint256):
+    """
+    @notice Proxy initialization method
+    """
     assert self.factory == ZERO_ADDRESS  # dev: already initialized
 
     self.chain_id = _chain_id
+    self.bridger = _bridger
     self.factory = msg.sender
-    self.inflation_params = _inflation_params
+
+    self.inflation_params = InflationParams({
+        rate: CRV20(CRV).rate(),
+        finish_time: CRV20(CRV).future_epoch_time_write()
+    })
     self.last_period = block.timestamp / WEEK
+
+    ERC20(CRV).approve(_bridger, MAX_UINT256)
