@@ -14,6 +14,7 @@ interface ERC20Extended:
 
 interface Factory:
     def owner() -> address: view
+    def request_emissions(): nonpayable
     def voting_escrow() -> address: view
 
 
@@ -46,6 +47,9 @@ event UpdateLiquidityLimit:
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
 
+CRV: immutable(address)
+MINTER: immutable(address)
+
 
 name: public(String[64])
 symbol: public(String[32])
@@ -71,11 +75,16 @@ integrate_inv_supply: public(HashMap[uint256, uint256])
 integrate_inv_supply_of: public(HashMap[address, uint256])
 
 is_killed: public(bool)
+last_request: public(uint256)
+_inflation_rate: HashMap[uint256, uint256]
 
 
 @external
-def __init__():
+def __init__(_crv_token: address, _minter: address):
     self.factory = 0x000000000000000000000000000000000000dEaD
+
+    CRV = _crv_token
+    MINTER = _minter
 
 
 @internal
@@ -88,24 +97,40 @@ def _checkpoint(_user: address):
     period_time: uint256 = self.period_timestamp[period]
     integrate_inv_supply: uint256 = self.integrate_inv_supply[period]
 
+    current_week: uint256 = block.timestamp / WEEK
+    # request emissions for this week (once a week)
+    if self.last_request / WEEK < current_week and not self.is_killed:
+        Factory(self.factory).request_emissions()
+        self.last_request = block.timestamp
+
+    # check CRV balance and increase weekly inflation rate by delta for the rest of the week
+    crv_balance: uint256 = ERC20(CRV).balanceOf(self)
+    if crv_balance != 0:
+        # internal access as may be misleading, inflation rate is increased everytime new rewards come in
+        # but really this increase only affects block.timestamp -> end of week, we don't ever
+        # really look backwards
+        self._inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
+        ERC20(CRV).transfer(MINTER, crv_balance)
+
     if block.timestamp > period_time:
-        # TODO: checkpoint gauge
 
         working_supply: uint256 = self.working_supply
         prev_week_time: uint256 = period_time
-        week_time: uint256 = min((period_time / WEEK + 1) * WEEK, block.timestamp)
+        week_time: uint256 = min((period_time + WEEK) / WEEK * WEEK, block.timestamp)
 
         for i in range(256):
-            delta: uint256 = week_time - prev_week_time
-            # TODO: calculate weight
+            dt: uint256 = week_time - prev_week_time
 
-            if working_supply > 0:
-                # TODO: calculate integrate_inv_supply +/-
+            if working_supply != 0:
+                # we don't have to worry about crossing inflation epochs
+                # and if we miss any weeks, those weeks inflation rates will be 0 for sure
+                # but that means no one interacted with the gauge for that long
+                integrate_inv_supply += self._inflation_rate[prev_week_time / WEEK] * dt / working_supply
 
-                if week_time == block.timestamp:
-                    break
-                prev_week_time = week_time
-                week_time = min(week_time + WEEK, block.timestamp)
+            if week_time == block.timestamp:
+                break
+            prev_week_time = week_time
+            week_time = min(week_time + WEEK, block.timestamp)
 
     period += 1
     self.period = period
