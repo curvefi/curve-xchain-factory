@@ -41,9 +41,9 @@ RATE_DENOMINATOR: constant(uint256) = 10 ** 18
 RATE_REDUCTION_COEFFICIENT: constant(uint256) = 1189207115002721024  # 2 ** (1/4) * 1e18
 RATE_REDUCTION_TIME: constant(uint256) = YEAR
 
-CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
-MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
+CRV: immutable(address)
+GAUGE_CONTROLLER: immutable(address)
+MINTER: immutable(address)
 
 
 chain_id: public(uint256)
@@ -58,8 +58,13 @@ is_killed: public(bool)
 
 
 @external
-def __init__():
+def __init__(_crv_token: address, _gauge_controller: address, _minter: address):
     self.factory = 0x000000000000000000000000000000000000dEaD
+
+    # assign immutable variables
+    CRV = _crv_token
+    GAUGE_CONTROLLER = _gauge_controller
+    MINTER = _minter
 
 
 @payable
