@@ -16,10 +16,6 @@ interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
 
-interface GaugeController:
-    def gauge_relative_weight(_gauge: address, _time: uint256) -> uint256: view
-    def checkpoint_gauge(_gauge: address): nonpayable
-
 
 event Approval:
     _owner: indexed(address)
@@ -47,7 +43,6 @@ event UpdateLiquidityLimit:
     _working_supply: uint256
 
 
-GAUGE_CONTROLLER: constant(address) = ZERO_ADDRESS
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
 
@@ -94,7 +89,7 @@ def _checkpoint(_user: address):
     integrate_inv_supply: uint256 = self.integrate_inv_supply[period]
 
     if block.timestamp > period_time:
-        GaugeController(GAUGE_CONTROLLER).checkpoint_gauge(self)
+        # TODO: checkpoint gauge
 
         working_supply: uint256 = self.working_supply
         prev_week_time: uint256 = period_time
@@ -102,7 +97,7 @@ def _checkpoint(_user: address):
 
         for i in range(256):
             delta: uint256 = week_time - prev_week_time
-            weight: uint256 = GaugeController(GAUGE_CONTROLLER).gauge_relative_weight(self, prev_week_time)
+            # TODO: calculate weight
 
             if working_supply > 0:
                 # TODO: calculate integrate_inv_supply +/-
