@@ -25,17 +25,32 @@ event UpdateVotingEscrow:
     _old_voting_escrow: address
     _new_voting_escrow: address
 
+event ManagerUpdated:
+    _old_manager: address
+    _new_manager: address
+
+event UpdatePermission:
+    _addr: indexed(address)
+    _permitted: bool
+
+event UpdateAnyCall:
+    _old: address
+    _new: address
+
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
 
+anycall: public(address)
 get_implementation: public(address)
 voting_escrow: public(address)
 
 owner: public(address)
 future_owner: public(address)
+manager: public(address)
 
+permitted: public(HashMap[address, bool])
 get_gauge_from_lp_token: public(HashMap[address, address])
 get_gauge_count: public(uint256)
 get_gauge: public(address[MAX_INT128])
@@ -49,6 +64,48 @@ def __init__(_implementation: address, _owner: address):
 
     self.owner = _owner
     log TransferOwnership(ZERO_ADDRESS, _owner)
+
+
+@external
+def request_emissions():
+    """
+    @notice Request emissions for a deployed gauge
+    @dev Caller must be a permitted gauge
+    """
+    assert self.permitted[msg.sender]  # dev: not permitted
+
+    # arrange data as an array in memory
+    data: uint256[2] = [
+        convert(method_id("transmit_emissions(address)", output_type=bytes32), uint256),
+        convert(msg.sender, uint256)
+    ]
+
+    # shift elements of the array to form an abi-encoded payload
+    array: uint256[2] = [
+        bitwise_or(shift(data[0], 224), shift(data[1], -32)),
+        shift(data[1], 224)
+    ]
+
+    # send the request cross-chain
+    raw_call(
+        self.anycall,
+        _abi_encode(
+            convert(160, uint256),  # address[] - 0
+            convert(224, uint256),  # bytes[] - 1
+            convert(384, uint256),  # address[] - 2
+            convert(416, uint256),  # uint256[] - 3
+            convert(1, uint256),  # uint256 - 4
+            convert(1, uint256),  # number of address elements - 5
+            self,  # 6
+            convert(1, uint256),  # number of bytes elements - 7
+            convert(32, uint256),  # bytes start pos - 8
+            convert(36, uint256),  # length in bytes - 9
+            array,  # bytes right padded - 10/11
+            convert(0, uint256),  # number of address elements - 12
+            convert(0, uint256),  # number of uint256 elements - 13
+            method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
+        )
+    )
 
 
 @external
@@ -77,6 +134,36 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
     return gauge
+
+
+@external
+def set_anycall(_anycall: address):
+    assert msg.sender == self.owner
+
+    log UpdateAnyCall(self.anycall, _anycall)
+    self.anycall = _anycall
+
+
+@external
+def set_permitted(_gauge: address, _permit: bool):
+    """
+    @notice Set permission of a gauge to make a cross chain call
+    """
+    assert msg.sender == self.manager  # dev: only manager
+
+    self.permitted[_gauge] = _permit
+    log UpdatePermission(_gauge, _permit)
+
+
+@external
+def set_manager(_manager: address):
+    """
+    @notice Update the manager address
+    """
+    assert msg.sender == self.owner
+
+    log ManagerUpdated(self.manager, _manager)
+    self.manager = _manager
 
 
 @external
