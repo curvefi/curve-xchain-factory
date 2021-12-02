@@ -6,7 +6,7 @@ from brownie_tokens import ERC20
 
 @pytest.fixture(scope="session")
 def child_gauge_factory(alice, ChildLiquidityGaugeFactory):
-    return ChildLiquidityGaugeFactory.deploy({"from": alice})
+    return ChildLiquidityGaugeFactory.deploy(alice, {"from": alice})
 
 
 @pytest.fixture(scope="session")
@@ -23,4 +23,11 @@ def child_minter(alice, child_gauge_factory, child_crv_token, Minter):
 def child_gauge_impl(
     alice, child_crv_token, child_minter, ChildLiquidityGauge, child_gauge_factory
 ):
-    return ChildLiquidityGauge.deploy(child_crv_token, child_minter, {"from": alice})
+    impl = ChildLiquidityGauge.deploy(child_crv_token, child_minter, {"from": alice})
+    child_gauge_factory.set_implementation(impl, {"from": alice})
+    return impl
+
+
+@pytest.fixture(scope="session")
+def lp_token(alice):
+    return ERC20("Dummy LP Token", "dLP", 18, deployer=alice)
