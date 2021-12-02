@@ -72,7 +72,8 @@ def request_emissions():
     @notice Request emissions for a deployed gauge
     @dev Caller must be a permitted gauge
     """
-    assert self.permitted[msg.sender]  # dev: not permitted
+    if not self.permitted[msg.sender]:
+        return
 
     # arrange data as an array in memory
     data: uint256[2] = [
