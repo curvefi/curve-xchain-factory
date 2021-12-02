@@ -590,8 +590,6 @@ def set_killed(_is_killed: bool):
 @external
 def initialize(_lp_token: address, _manager: address):
     assert self.factory == ZERO_ADDRESS  # dev: already initialzed
-    self._checkpoint(ZERO_ADDRESS)
-    self._update_liquidity_limit(ZERO_ADDRESS, 0, 0)
 
     self.factory = msg.sender
     self.lp_token = _lp_token

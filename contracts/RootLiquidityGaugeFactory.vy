@@ -8,6 +8,7 @@
 
 interface RootLiquidityGauge:
     def initialize(_bridger: address, _chain_id: uint256): nonpayable
+    def transmit(): nonpayable
 
 
 event BridgerUpdated:
@@ -49,6 +50,11 @@ def __init__(_implementation: address, _owner: address):
 
     self.owner = _owner
     log TransferOwnership(ZERO_ADDRESS, _owner)
+
+
+@external
+def transmit_emissions(_gauge: address):
+    RootLiquidityGauge(_gauge).transmit()
 
 
 @payable
