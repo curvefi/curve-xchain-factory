@@ -44,6 +44,16 @@ event UpdateLiquidityLimit:
     _working_supply: uint256
 
 
+struct Reward:
+    token: address
+    distributor: address
+    period_finish: uint256
+    rate: uint256
+    last_update: uint256
+    integral: uint256
+
+
+MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
 
@@ -73,6 +83,17 @@ integrate_checkpoint_of: public(HashMap[address, uint256])
 integrate_fraction: public(HashMap[address, uint256])
 integrate_inv_supply: public(HashMap[uint256, uint256])
 integrate_inv_supply_of: public(HashMap[address, uint256])
+
+# For tracking external rewards
+reward_count: public(uint256)
+reward_tokens: public(address[MAX_REWARDS])
+reward_data: public(HashMap[address, Reward])
+# claimant -> default reward receiver
+rewards_receiver: public(HashMap[address, address])
+# reward token -> claiming address -> integral
+reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
+# user -> token -> [uint128 claimable amount][uint128 claimed amount]
+claim_data: HashMap[address, HashMap[address, uint256]]
 
 is_killed: public(bool)
 last_request: public(uint256)
@@ -168,6 +189,66 @@ def _update_liquidity_limit(_user: address, _user_balance: uint256, _total_suppl
     self.working_supply = working_supply
 
     log UpdateLiquidityLimit(_user, _user_balance, _total_supply, working_balance, working_supply)
+
+
+@internal
+def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _receiver: address):
+    """
+    @notice Claim pending rewards and checkpoint rewards for a user
+    """
+    user_balance: uint256 = 0
+    receiver: address = _receiver
+    if _user != ZERO_ADDRESS:
+        user_balance = self.balanceOf[_user]
+        if _claim and _receiver == ZERO_ADDRESS:
+            # if receiver is not explicitly declared, check if a default receiver is set
+            receiver = self.rewards_receiver[_user]
+            if receiver == ZERO_ADDRESS:
+                # if no default receiver is set, direct claims to the user
+                receiver = _user
+
+    reward_count: uint256 = self.reward_count
+    for i in range(MAX_REWARDS):
+        if i == reward_count:
+            break
+        token: address = self.reward_tokens[i]
+
+        integral: uint256 = self.reward_data[token].integral
+        last_update: uint256 = min(block.timestamp, self.reward_data[token].period_finish)
+        duration: uint256 = last_update - self.reward_data[token].last_update
+        if duration != 0:
+            self.reward_data[token].last_update = last_update
+            if _total_supply != 0:
+                integral += duration * self.reward_data[token].rate * 10**18 / _total_supply
+                self.reward_data[token].integral = integral
+
+        if _user != ZERO_ADDRESS:
+            integral_for: uint256 = self.reward_integral_for[token][_user]
+            new_claimable: uint256 = 0
+
+            if integral_for < integral:
+                self.reward_integral_for[token][_user] = integral
+                new_claimable = user_balance * (integral - integral_for) / 10**18
+
+            claim_data: uint256 = self.claim_data[_user][token]
+            total_claimable: uint256 = shift(claim_data, -128) + new_claimable
+            if total_claimable > 0:
+                total_claimed: uint256 = claim_data % 2**128
+                if _claim:
+                    response: Bytes[32] = raw_call(
+                        token,
+                        _abi_encode(
+                            receiver,
+                            total_claimable,
+                            method_id=method_id("transfer(address,uint256)")
+                        ),
+                        max_outsize=32,
+                    )
+                    if len(response) != 0:
+                        assert convert(response, bool)
+                    self.claim_data[_user][token] = total_claimed + total_claimable
+                elif new_claimable > 0:
+                    self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
 
 
 @internal
