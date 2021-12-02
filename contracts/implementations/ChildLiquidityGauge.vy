@@ -196,12 +196,20 @@ def deposit(_value: uint256, _user: address = msg.sender):
     @param _value Number of tokens to deposit
     @param _user The account to send gauge tokens to
     """
+    self._checkpoint(_user)
     if _value == 0:
         return
-    self.balanceOf[_user] += _value
-    self.totalSupply += _value
+
+    total_supply: uint256 = self.totalSupply + _value
+    new_balance: uint256 = self.balanceOf[_user] + _value
+
+    self.balanceOf[_user] = new_balance
+    self.totalSupply = total_supply
+
+    self._update_liquidity_limit(_user, new_balance, total_supply)
 
     ERC20(self.lp_token).transferFrom(msg.sender, self, _value)
+
     log Deposit(_user, _value)
     log Transfer(ZERO_ADDRESS, _user, _value)
 
@@ -213,12 +221,20 @@ def withdraw(_value: uint256, _user: address = msg.sender):
     @param _value Number of tokens to withdraw
     @param _user The account to send LP tokens to
     """
+    self._checkpoint(_user)
     if _value == 0:
         return
-    self.balanceOf[msg.sender] -= _value
-    self.totalSupply -= _value
 
-    ERC20(self.lp_token).transferFrom(self, _user, _value)
+    total_supply: uint256 = self.totalSupply - _value
+    new_balance: uint256 = self.balanceOf[msg.sender] - _value
+
+    self.balanceOf[msg.sender] = new_balance
+    self.totalSupply = total_supply
+
+    self._update_liquidity_limit(msg.sender, new_balance, total_supply)
+
+    ERC20(self.lp_token).transfer(_user, _value)
+
     log Withdraw(_user, _value)
     log Transfer(msg.sender, ZERO_ADDRESS, _value)
 
