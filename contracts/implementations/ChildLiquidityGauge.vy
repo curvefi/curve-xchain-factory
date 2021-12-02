@@ -503,6 +503,72 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = ZERO_ADDRESS
 
 
 @external
+def add_reward(_reward_token: address, _distributor: address):
+    """
+    @notice Set the active reward contract
+    """
+    assert msg.sender == self.manager or msg.sender == Factory(self.factory).owner()
+
+    reward_count: uint256 = self.reward_count
+    assert reward_count < MAX_REWARDS
+    assert self.reward_data[_reward_token].distributor == ZERO_ADDRESS
+
+    self.reward_data[_reward_token].distributor = _distributor
+    self.reward_tokens[reward_count] = _reward_token
+    self.reward_count = reward_count + 1
+
+
+@external
+def set_reward_distributor(_reward_token: address, _distributor: address):
+    current_distributor: address = self.reward_data[_reward_token].distributor
+
+    assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == Factory(self.factory).owner()
+    assert current_distributor != ZERO_ADDRESS
+    assert _distributor != ZERO_ADDRESS
+
+    self.reward_data[_reward_token].distributor = _distributor
+
+
+@external
+@nonreentrant("lock")
+def deposit_reward_token(_reward_token: address, _amount: uint256):
+    assert msg.sender == self.reward_data[_reward_token].distributor
+
+    self._checkpoint_rewards(ZERO_ADDRESS, self.totalSupply, False, ZERO_ADDRESS)
+
+    response: Bytes[32] = raw_call(
+        _reward_token,
+        _abi_encode(
+            msg.sender,
+            self,
+            _amount,
+            method_id=method_id("transferFrom(address,address,uint256)")
+        ),
+        max_outsize=32,
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
+    period_finish: uint256 = self.reward_data[_reward_token].period_finish
+    if block.timestamp >= period_finish:
+        self.reward_data[_reward_token].rate = _amount / WEEK
+    else:
+        remaining: uint256 = period_finish - block.timestamp
+        leftover: uint256 = remaining * self.reward_data[_reward_token].rate
+        self.reward_data[_reward_token].rate = (_amount + leftover) / WEEK
+
+    self.reward_data[_reward_token].last_update = block.timestamp
+    self.reward_data[_reward_token].period_finish = block.timestamp + WEEK
+
+
+@external
+def set_manager(_manager: address):
+    assert msg.sender == Factory(self.factory).owner()
+
+    self.manager = _manager
+
+
+@external
 def update_voting_escrow():
     """
     @notice Update the voting escrow contract in storage
