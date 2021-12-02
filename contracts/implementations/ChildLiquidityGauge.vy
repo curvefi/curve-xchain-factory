@@ -170,6 +170,25 @@ def _update_liquidity_limit(_user: address, _user_balance: uint256, _total_suppl
     log UpdateLiquidityLimit(_user, _user_balance, _total_supply, working_balance, working_supply)
 
 
+@internal
+def _transfer(_from: address, _to: address, _value: uint256):
+    self._checkpoint(_from)
+    self._checkpoint(_to)
+
+    if _value != 0:
+        total_supply: uint256 = self.totalSupply
+
+        new_balance: uint256 = self.balanceOf[_from] - _value
+        self.balanceOf[_from] = new_balance
+        self._update_liquidity_limit(_from, new_balance, total_supply)
+
+        new_balance = self.balanceOf[_to] + _value
+        self.balanceOf[_to] = new_balance
+        self._update_liquidity_limit(_to, new_balance, total_supply)
+
+        log Transfer(_from, _to, _value)
+
+
 @external
 def deposit(_value: uint256, _user: address = msg.sender):
     """
@@ -217,10 +236,7 @@ def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     if allowance != MAX_UINT256:
         self.allowance[_from][msg.sender] = allowance - _value
 
-    self.balanceOf[_from] -= _value
-    self.balanceOf[_to] += _value
-
-    log Transfer(_from, _to, _value)
+    self._transfer(_from, _to, _value)
     return True
 
 
@@ -252,10 +268,7 @@ def transfer(_to: address, _value: uint256) -> bool:
     @param _value The amount to be transferred
     @return bool success
     """
-    self.balanceOf[msg.sender] -= _value
-    self.balanceOf[_to] += _value
-
-    log Transfer(msg.sender, _to, _value)
+    self._transfer(msg.sender, _to, _value)
     return True
 
 
