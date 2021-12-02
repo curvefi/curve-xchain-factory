@@ -277,7 +277,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
 
 
 @external
-def deposit(_value: uint256, _user: address = msg.sender):
+def deposit(_value: uint256, _user: address = msg.sender, _claim_rewards: bool = False):
     """
     @notice Deposit `_value` LP tokens
     @param _value Number of tokens to deposit
@@ -287,8 +287,13 @@ def deposit(_value: uint256, _user: address = msg.sender):
     if _value == 0:
         return
 
-    total_supply: uint256 = self.totalSupply + _value
+    total_supply: uint256 = self.totalSupply
     new_balance: uint256 = self.balanceOf[_user] + _value
+
+    if self.reward_count != 0:
+        self._checkpoint_rewards(_user, total_supply, _claim_rewards, ZERO_ADDRESS)
+
+    total_supply += _value
 
     self.balanceOf[_user] = new_balance
     self.totalSupply = total_supply
@@ -302,7 +307,7 @@ def deposit(_value: uint256, _user: address = msg.sender):
 
 
 @external
-def withdraw(_value: uint256, _user: address = msg.sender):
+def withdraw(_value: uint256, _user: address = msg.sender, _claim_rewards: bool = False):
     """
     @notice Withdraw `_value` LP tokens
     @param _value Number of tokens to withdraw
@@ -312,8 +317,13 @@ def withdraw(_value: uint256, _user: address = msg.sender):
     if _value == 0:
         return
 
-    total_supply: uint256 = self.totalSupply - _value
+    total_supply: uint256 = self.totalSupply
     new_balance: uint256 = self.balanceOf[msg.sender] - _value
+
+    if self.reward_count != 0:
+        self._checkpoint_rewards(_user, total_supply, _claim_rewards, ZERO_ADDRESS)
+
+    total_supply -= _value
 
     self.balanceOf[msg.sender] = new_balance
     self.totalSupply = total_supply
