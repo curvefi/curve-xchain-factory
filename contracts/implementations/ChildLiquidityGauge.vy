@@ -611,3 +611,9 @@ def decimals() -> uint256:
     @notice Returns the number of decimals the token uses
     """
     return 18
+
+
+@view
+@external
+def integrate_checkpoint() -> uint256:
+    return self.period_timestamp[self.period]
