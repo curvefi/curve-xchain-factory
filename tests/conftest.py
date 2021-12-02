@@ -9,6 +9,11 @@ def pytest_sessionfinish(session, exitstatus):
         session.exitstatus = pytest.ExitCode.OK
 
 
+@pytest.fixture(scope="session")
+def curve_dao(pm):
+    return pm("curvefi/curve-dao-contracts@1.3.0")
+
+
 @pytest.fixture(scope="module", autouse=True)
 def mod_isolation(chain):
     chain.snapshot()
