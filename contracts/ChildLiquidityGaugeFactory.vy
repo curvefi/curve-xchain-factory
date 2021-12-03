@@ -51,6 +51,7 @@ future_owner: public(address)
 manager: public(address)
 
 permitted: public(HashMap[address, bool])
+is_valid_gauge: public(HashMap[address, bool])
 get_gauge_from_lp_token: public(HashMap[address, address])
 get_gauge_count: public(uint256)
 get_gauge: public(address[MAX_INT128])
@@ -59,6 +60,8 @@ get_gauge: public(address[MAX_INT128])
 @external
 def __init__(_owner: address):
     self.owner = _owner
+    self.manager = _owner
+    log ManagerUpdated(ZERO_ADDRESS, _owner)
     log TransferOwnership(ZERO_ADDRESS, _owner)
 
 
@@ -126,6 +129,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     self.get_gauge[idx] = gauge
     self.get_gauge_count = idx + 1
     self.get_gauge_from_lp_token[_lp_token] = gauge
+    self.is_valid_gauge[gauge] = True
 
     ChildLiquidityGauge(gauge).initialize(_lp_token, _manager)
 

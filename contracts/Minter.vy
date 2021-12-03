@@ -11,7 +11,7 @@ interface LiquidityGauge:
     def user_checkpoint(addr: address) -> bool: nonpayable
 
 interface Factory:
-    def permitted(_gauge: address) -> bool: view
+    def is_valid_gauge(_gauge: address) -> bool: view
 
 
 event Minted:
@@ -39,7 +39,7 @@ def __init__(_token: address, _factory: address):
 
 @internal
 def _mint_for(gauge_addr: address, _for: address):
-    assert Factory(FACTORY).permitted(gauge_addr)  # dev: invalid gauge
+    assert Factory(FACTORY).is_valid_gauge(gauge_addr)  # dev: invalid gauge
 
     LiquidityGauge(gauge_addr).user_checkpoint(_for)
     total_mint: uint256 = LiquidityGauge(gauge_addr).integrate_fraction(_for)
