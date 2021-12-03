@@ -1,3 +1,5 @@
+import brownie
+from brownie import ETH_ADDRESS
 from brownie.convert.datatypes import HexString
 from eth_abi import abi
 
@@ -18,7 +20,7 @@ def test_deploy_child_gauge(
     )
     expected = create2_address_of(child_gauge_factory.address, web3.keccak(salt), proxy_init_code)
 
-    tx = child_gauge_factory.deploy_gauge(lp_token, 0x0)
+    tx = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice})
 
     assert tx.return_value == expected
     assert child_gauge_factory.get_gauge(0) == expected
@@ -32,3 +34,35 @@ def test_deploy_child_gauge(
         HexString(0, "bytes32"),
         expected,
     ]
+
+
+def test_deploy_child_gauge_repeat_lp_token(alice, bob, child_gauge_factory, lp_token):
+    child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice})
+
+    with brownie.reverts():
+        child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": bob})
+
+
+def test_deploy_child_gauge_repeat_salt(alice, child_gauge_factory, lp_token):
+    child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice})
+
+    with brownie.reverts():
+        child_gauge_factory.deploy_gauge(ETH_ADDRESS, 0x0, {"from": alice})
+
+
+def test_request_emissions(alice, child_gauge_factory, lp_token, web3):
+    gauge = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice}).return_value
+    child_gauge_factory.set_permitted(gauge, True, {"from": alice})
+    internal = web3.keccak(text="transmit_emissions(address)")[:4] + abi.encode_single(
+        "address", gauge
+    )
+
+    expected_calldata = web3.keccak(text="anyCall(address[],bytes[],address[],uint256[],uint256)")[
+        :4
+    ] + abi.encode_single(
+        "(address[],bytes[],address[],uint256[],uint256)",
+        [[child_gauge_factory.address], [internal], [], [], 1],
+    )
+
+    tx = child_gauge_factory.request_emissions({"from": gauge})
+    assert tx.subcalls[0]["calldata"] == "0x" + expected_calldata.hex()
