@@ -277,6 +277,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
 
 
 @external
+@nonreentrant("lock")
 def deposit(_value: uint256, _user: address = msg.sender, _claim_rewards: bool = False):
     """
     @notice Deposit `_value` LP tokens
@@ -307,6 +308,7 @@ def deposit(_value: uint256, _user: address = msg.sender, _claim_rewards: bool =
 
 
 @external
+@nonreentrant("lock")
 def withdraw(_value: uint256, _user: address = msg.sender, _claim_rewards: bool = False):
     """
     @notice Withdraw `_value` LP tokens
@@ -337,6 +339,7 @@ def withdraw(_value: uint256, _user: address = msg.sender, _claim_rewards: bool 
 
 
 @external
+@nonreentrant("lock")
 def transferFrom(_from: address, _to: address, _value: uint256) -> bool:
     """
     @notice Transfer tokens from one address to another
@@ -374,6 +377,7 @@ def approve(_spender: address, _value: uint256) -> bool:
 
 
 @external
+@nonreentrant("lock")
 def transfer(_to: address, _value: uint256) -> bool:
     """
     @notice Transfer token to a specified address
