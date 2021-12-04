@@ -45,11 +45,71 @@ def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildLiq
     return Contract.from_abi("Child Gauge", gauge_addr, ChildLiquidityGauge.abi)
 
 
+# ROOT CHAIN DAO
+
+
+@pytest.fixture(scope="session")
+def curve_dao(pm):
+    return pm("curvefi/curve-dao-contracts@1.3.0")
+
+
+@pytest.fixture(scope="session")
+def root_crv_token(alice, curve_dao):
+    return curve_dao.ERC20CRV.deploy("Root Curve DAO Token", "rCRV", 18, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def root_voting_escrow(alice, root_crv_token, curve_dao):
+    return curve_dao.VotingEscrow.deploy(
+        root_crv_token, "Dummy VECRV", "veCRV", "v1", {"from": alice}
+    )
+
+
+@pytest.fixture(scope="session")
+def root_gauge_controller(alice, root_crv_token, root_voting_escrow, curve_dao):
+    return curve_dao.GaugeController.deploy(root_crv_token, root_voting_escrow, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
+    minter = curve_dao.Minter.deploy(root_crv_token, root_gauge_controller, {"from": alice})
+    root_crv_token.set_minter(minter, {"from": alice})
+    return minter
+
+
+# ROOT CHAIN DEPLOYMENTS
+
+
 @pytest.fixture(scope="session")
 def root_gauge_factory(alice, RootLiquidityGaugeFactory):
     return RootLiquidityGaugeFactory.deploy(alice, {"from": alice})
 
 
-@pytest.fixture(scope="session")
-def mock_bridger(alice, MockBridger):
-    return MockBridger.deploy({"from": alice})
+@pytest.fixture(scope="module")
+def mock_bridger(alice, chain, root_gauge_factory, MockBridger):
+    bridger = MockBridger.deploy({"from": alice})
+    root_gauge_factory.set_bridger(chain.id, bridger, {"from": alice})
+    return bridger
+
+
+@pytest.fixture(scope="module")
+def root_gauge_impl(
+    alice,
+    root_gauge_controller,
+    root_minter,
+    root_crv_token,
+    root_gauge_factory,
+    mock_bridger,
+    RootLiquidityGauge,
+):
+    impl = RootLiquidityGauge.deploy(
+        root_crv_token, root_gauge_controller, root_minter, {"from": alice}
+    )
+    root_gauge_factory.set_implementation(impl, {"from": alice})
+    return impl
+
+
+@pytest.fixture(scope="module")
+def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootLiquidityGauge):
+    gauge_addr = root_gauge_factory.deploy_gauge(chain.id, 0x0, {"from": alice}).return_value
+    return Contract.from_abi("Root Gauge", gauge_addr, RootLiquidityGauge.abi)
