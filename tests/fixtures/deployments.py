@@ -54,8 +54,11 @@ def curve_dao(pm):
 
 
 @pytest.fixture(scope="session")
-def root_crv_token(alice, curve_dao):
-    return curve_dao.ERC20CRV.deploy("Root Curve DAO Token", "rCRV", 18, {"from": alice})
+def root_crv_token(alice, chain, curve_dao):
+    crv = curve_dao.ERC20CRV.deploy("Root Curve DAO Token", "rCRV", 18, {"from": alice})
+    chain.sleep(86400 * 14)
+    crv.update_mining_parameters({"from": alice})
+    return crv
 
 
 @pytest.fixture(scope="session")

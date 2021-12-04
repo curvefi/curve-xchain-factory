@@ -192,10 +192,13 @@ def initialize(_bridger: address, _chain_id: uint256):
     self.bridger = _bridger
     self.factory = msg.sender
 
-    self.inflation_params = InflationParams({
+    inflation_params: InflationParams = InflationParams({
         rate: CRV20(CRV).rate(),
         finish_time: CRV20(CRV).future_epoch_time_write()
     })
+    assert inflation_params.rate != 0
+
+    self.inflation_params = inflation_params
     self.last_period = block.timestamp / WEEK
 
     ERC20(CRV).approve(_bridger, MAX_UINT256)
