@@ -48,3 +48,8 @@ def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildLiq
 @pytest.fixture(scope="session")
 def root_gauge_factory(alice, RootLiquidityGaugeFactory):
     return RootLiquidityGaugeFactory.deploy(alice, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def mock_bridger(alice, MockBridger):
+    return MockBridger.deploy({"from": alice})
