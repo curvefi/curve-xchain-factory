@@ -100,7 +100,7 @@ claim_data: HashMap[address, HashMap[address, uint256]]
 
 is_killed: public(bool)
 last_request: public(uint256)
-_inflation_rate: HashMap[uint256, uint256]
+inflation_rate: public(HashMap[uint256, uint256])
 
 
 @external
@@ -130,10 +130,8 @@ def _checkpoint(_user: address):
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
     crv_balance: uint256 = ERC20(CRV).balanceOf(self)
     if crv_balance != 0:
-        # internal access as may be misleading, inflation rate is increased everytime new rewards come in
-        # but really this increase only affects block.timestamp -> end of week, we don't ever
-        # really look backwards
-        self._inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
+        # increase inflation rate by crv_balance / amount of time remaining in this week since max(last period, week_start)
+        self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - max(current_week * WEEK, period_time))
         ERC20(CRV).transfer(MINTER, crv_balance)
 
     if block.timestamp > period_time:
@@ -149,7 +147,7 @@ def _checkpoint(_user: address):
                 # we don't have to worry about crossing inflation epochs
                 # and if we miss any weeks, those weeks inflation rates will be 0 for sure
                 # but that means no one interacted with the gauge for that long
-                integrate_inv_supply += self._inflation_rate[prev_week_time / WEEK] * dt / working_supply
+                integrate_inv_supply += self.inflation_rate[prev_week_time / WEEK] * dt / working_supply
 
             if week_time == block.timestamp:
                 break
