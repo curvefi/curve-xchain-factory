@@ -27,3 +27,16 @@ def test_reverts_for_double_adding(alice, child_gauge, reward_token):
 
     with brownie.reverts():
         child_gauge.add_reward(reward_token, alice, {"from": alice})
+
+
+def test_set_reward_distributor_admin_only(accounts, chain, reward_token, child_gauge):
+    child_gauge.set_manager(accounts[1], {"from": accounts[0]})
+    child_gauge.add_reward(reward_token, accounts[2], {"from": accounts[0]})
+
+    for i in range(3):
+        child_gauge.set_reward_distributor(reward_token, accounts[-1], {"from": accounts[i]})
+        assert child_gauge.reward_data(reward_token)["distributor"] == accounts[-1]
+        chain.undo()
+
+    with brownie.reverts():
+        child_gauge.set_reward_distributor(reward_token, accounts[-1], {"from": accounts[3]})
