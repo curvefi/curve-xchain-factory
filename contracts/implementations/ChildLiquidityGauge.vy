@@ -48,7 +48,6 @@ event UpdateLiquidityLimit:
 
 
 struct Reward:
-    token: address
     distributor: address
     period_finish: uint256
     rate: uint256
