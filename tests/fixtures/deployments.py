@@ -43,3 +43,8 @@ def child_gauge_impl(
 def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildLiquidityGauge):
     gauge_addr = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice}).return_value
     return Contract.from_abi("Child Gauge", gauge_addr, ChildLiquidityGauge.abi)
+
+
+@pytest.fixture(scope="session")
+def root_gauge_factory(alice, RootLiquidityGaugeFactory):
+    return RootLiquidityGaugeFactory.deploy(alice, {"from": alice})
