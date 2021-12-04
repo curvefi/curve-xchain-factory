@@ -120,19 +120,6 @@ def _checkpoint(_user: address):
     period_time: uint256 = self.period_timestamp[period]
     integrate_inv_supply: uint256 = self.integrate_inv_supply[period]
 
-    current_week: uint256 = block.timestamp / WEEK
-    # request emissions for this week (once a week)
-    if self.last_request / WEEK < current_week and not self.is_killed:
-        Factory(self.factory).request_emissions()
-        self.last_request = block.timestamp
-
-    # check CRV balance and increase weekly inflation rate by delta for the rest of the week
-    crv_balance: uint256 = ERC20(CRV).balanceOf(self)
-    if crv_balance != 0:
-        # increase inflation rate by crv_balance / amount of time remaining in this week since max(last period, week_start)
-        self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - max(current_week * WEEK, period_time))
-        ERC20(CRV).transfer(MINTER, crv_balance)
-
     if block.timestamp > period_time:
 
         working_supply: uint256 = self.working_supply
@@ -146,12 +133,25 @@ def _checkpoint(_user: address):
                 # we don't have to worry about crossing inflation epochs
                 # and if we miss any weeks, those weeks inflation rates will be 0 for sure
                 # but that means no one interacted with the gauge for that long
-                integrate_inv_supply += self.inflation_rate[prev_week_time / WEEK] * dt / working_supply
+                integrate_inv_supply += self.inflation_rate[prev_week_time / WEEK] * 10 ** 18 * dt / working_supply
 
             if week_time == block.timestamp:
                 break
             prev_week_time = week_time
             week_time = min(week_time + WEEK, block.timestamp)
+
+    current_week: uint256 = block.timestamp / WEEK
+    # request emissions for this week (once a week)
+    if self.last_request / WEEK < current_week and not self.is_killed:
+        Factory(self.factory).request_emissions()
+        self.last_request = block.timestamp
+
+    # check CRV balance and increase weekly inflation rate by delta for the rest of the week
+    crv_balance: uint256 = ERC20(CRV).balanceOf(self)
+    if crv_balance != 0:
+        # increase inflation rate by crv_balance / amount of time remaining in this week since max(last period, week_start)
+        self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
+        ERC20(CRV).transfer(MINTER, crv_balance)
 
     period += 1
     self.period = period
@@ -601,6 +601,8 @@ def initialize(_lp_token: address, _manager: address):
     symbol: String[26] = ERC20Extended(_lp_token).symbol()
     self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
     self.symbol = concat(symbol, "-gauge")
+
+    self.period_timestamp[0] = block.timestamp
 
 
 @view

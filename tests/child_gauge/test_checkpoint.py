@@ -38,21 +38,16 @@ def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, ch
 
     # send rewards into the gauge
     child_crv_token._mint_for_testing(child_gauge, 10 ** 24, {"from": alice})
-    last_period_time = child_gauge.integrate_checkpoint()
     # interact with the gauge (necessary to update the inflation rate)
     tx = child_gauge.user_checkpoint(alice, {"from": alice})
-    expected_inflation_rate = 10 ** 24 // ((week_i + 1) * WEEK - last_period_time)
+    expected_inflation_rate = 10 ** 24 // ((week_i + 1) * WEEK - tx.timestamp)
     assert child_gauge.inflation_rate(week_i) == expected_inflation_rate
 
     # check balance is forwarded to minter
     assert child_crv_token.balanceOf(child_gauge) == 0
     assert child_crv_token.balanceOf(child_minter) == 10 ** 24
 
-    # check integrals
-    int_inv_supply = (
-        expected_inflation_rate * (tx.timestamp - last_period_time) // child_gauge.working_supply()
-    )
-    assert int_inv_supply == child_gauge.integrate_inv_supply(child_gauge.period())
+    assert child_gauge.integrate_inv_supply(child_gauge.period()) == 0
 
 
 def test_multiple_emissions_deposits(alice, chain, child_gauge, child_crv_token, child_minter):
@@ -64,10 +59,9 @@ def test_multiple_emissions_deposits(alice, chain, child_gauge, child_crv_token,
 
     # send rewards into the gauge
     child_crv_token._mint_for_testing(child_gauge, 10 ** 24, {"from": alice})
-    last_period_time = child_gauge.integrate_checkpoint()
     # interact with the gauge (necessary to update the inflation rate)
-    child_gauge.user_checkpoint(alice, {"from": alice})
-    expected_inflation_rate = 10 ** 24 // ((week_i + 1) * WEEK - last_period_time)
+    tx = child_gauge.user_checkpoint(alice, {"from": alice})
+    expected_inflation_rate = 10 ** 24 // ((week_i + 1) * WEEK - tx.timestamp)
     assert child_gauge.inflation_rate(week_i) == expected_inflation_rate
 
     # sleep a day
@@ -75,10 +69,9 @@ def test_multiple_emissions_deposits(alice, chain, child_gauge, child_crv_token,
 
     # send rewards into the gauge new amount
     child_crv_token._mint_for_testing(child_gauge, 10 ** 43, {"from": alice})
-    last_period_time = child_gauge.integrate_checkpoint()
     # interact with the gauge (necessary to update the inflation rate)
-    child_gauge.user_checkpoint(alice, {"from": alice})
-    expected_inflation_rate += 10 ** 43 // ((week_i + 1) * WEEK - last_period_time)
+    tx = child_gauge.user_checkpoint(alice, {"from": alice})
+    expected_inflation_rate += 10 ** 43 // ((week_i + 1) * WEEK - tx.timestamp)
     assert child_gauge.inflation_rate(week_i) == expected_inflation_rate
 
     # completely new period
@@ -91,7 +84,7 @@ def test_multiple_emissions_deposits(alice, chain, child_gauge, child_crv_token,
     # send rewards into the gauge new amount
     child_crv_token._mint_for_testing(child_gauge, 10 ** 35, {"from": alice})
     # interact with the gauge (necessary to update the inflation rate)
-    child_gauge.user_checkpoint(alice, {"from": alice})
+    tx = child_gauge.user_checkpoint(alice, {"from": alice})
     # inflation will start from beginning of the week instead of last period time
-    expected_inflation_rate = 10 ** 35 // ((week_i + 1) * WEEK - (week_i * WEEK))
+    expected_inflation_rate = 10 ** 35 // ((week_i + 1) * WEEK - tx.timestamp)
     assert child_gauge.inflation_rate(week_i) == expected_inflation_rate

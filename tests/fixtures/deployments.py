@@ -17,7 +17,7 @@ def child_crv_token(alice):
 
 @pytest.fixture(scope="session")
 def child_minter(alice, child_gauge_factory, child_crv_token, Minter):
-    return Minter.deploy(child_gauge_factory, child_crv_token, {"from": alice})
+    return Minter.deploy(child_crv_token, child_gauge_factory, {"from": alice})
 
 
 @pytest.fixture(scope="session")
