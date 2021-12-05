@@ -57,12 +57,13 @@ def test_request_emissions(alice, child_gauge_factory, lp_token, web3):
         "address", gauge
     )
 
-    expected_calldata = web3.keccak(text="anyCall(address[],bytes[],address[],uint256[],uint256)")[
-        :4
-    ] + abi.encode_single(
-        "(address[],bytes[],address[],uint256[],uint256)",
-        [[child_gauge_factory.address], [internal], [], [], 1],
-    )
+    expected_inputs = {
+        "callbacks": [],
+        "data": [HexString(internal, "bytes")],
+        "nonces": [],
+        "to": [child_gauge_factory.address],
+        "toChainID": 1,
+    }
 
     tx = child_gauge_factory.request_emissions({"from": gauge})
-    assert tx.subcalls[0]["calldata"] == "0x" + expected_calldata.hex()
+    assert tx.subcalls[0]["inputs"] == expected_inputs

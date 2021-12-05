@@ -2,12 +2,25 @@ import pytest
 from brownie import Contract
 from brownie_tokens import ERC20
 
+# ANYCALL DEPLOYMENT
+
+
+@pytest.fixture(scope="session")
+def anycall(alice, AnyCallProxy):
+    instance = AnyCallProxy.deploy(alice, {"from": alice})
+    # disable whitelist for simplicity
+    # live deployment requires each `to` address to be
+    # whitelisted on both ends (root/child chain)
+    instance.disableWhitelist({"from": alice})
+    return instance
+
+
 # CHILD CHAIN DEPLOYMENTS
 
 
 @pytest.fixture(scope="session")
-def child_gauge_factory(alice, ChildLiquidityGaugeFactory):
-    return ChildLiquidityGaugeFactory.deploy(alice, {"from": alice})
+def child_gauge_factory(alice, anycall, ChildLiquidityGaugeFactory):
+    return ChildLiquidityGaugeFactory.deploy(anycall, alice, {"from": alice})
 
 
 @pytest.fixture(scope="session")

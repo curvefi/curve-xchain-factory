@@ -33,16 +33,14 @@ event UpdatePermission:
     _addr: indexed(address)
     _permitted: bool
 
-event UpdateAnyCall:
-    _old: address
-    _new: address
-
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
 
-anycall: public(address)
+ANYCALL: immutable(address)
+
+
 get_implementation: public(address)
 voting_escrow: public(address)
 
@@ -58,7 +56,9 @@ get_gauge: public(address[MAX_INT128])
 
 
 @external
-def __init__(_owner: address):
+def __init__(_anycall: address, _owner: address):
+    ANYCALL = _anycall
+
     self.owner = _owner
     self.manager = _owner
     log ManagerUpdated(ZERO_ADDRESS, _owner)
@@ -88,7 +88,7 @@ def request_emissions():
 
     # send the request cross-chain
     raw_call(
-        self.anycall,
+        ANYCALL,
         _abi_encode(
             convert(160, uint256),  # address[] - 0
             convert(224, uint256),  # bytes[] - 1
@@ -135,14 +135,6 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
     return gauge
-
-
-@external
-def set_anycall(_anycall: address):
-    assert msg.sender == self.owner
-
-    log UpdateAnyCall(self.anycall, _anycall)
-    self.anycall = _anycall
 
 
 @external
