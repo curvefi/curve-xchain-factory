@@ -142,7 +142,7 @@ def set_permitted(_gauge: address, _permit: bool):
     """
     @notice Set permission of a gauge to make a cross chain call
     """
-    assert msg.sender == self.manager  # dev: only manager
+    assert msg.sender == self.manager or msg.sender == self.owner  # dev: only manager
 
     self.permitted[_gauge] = _permit
     log UpdatePermission(_gauge, _permit)
