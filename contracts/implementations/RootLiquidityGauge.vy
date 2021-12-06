@@ -8,7 +8,7 @@
 
 interface Bridger:
     def cost() -> uint256: view
-    def transmit(_token: address, _destination: address, _amount: uint256): payable
+    def bridge(_token: address, _destination: address, _amount: uint256): payable
 
 interface CRV20:
     def rate() -> uint256: view
@@ -74,7 +74,7 @@ def __default__():
 
 
 @external
-def transmit():
+def transmit_emissions():
     """
     @notice Mint any new emissions and transmit across to child gauge
     """
@@ -84,7 +84,7 @@ def transmit():
 
     assert minted != 0  # dev: nothing minted
     bridger: address = self.bridger
-    Bridger(bridger).transmit(CRV, self, minted, value=Bridger(bridger).cost())
+    Bridger(bridger).bridge(CRV, self, minted, value=Bridger(bridger).cost())
 
 
 @view

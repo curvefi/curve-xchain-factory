@@ -8,7 +8,7 @@
 
 interface RootLiquidityGauge:
     def initialize(_bridger: address, _chain_id: uint256): nonpayable
-    def transmit(): nonpayable
+    def transmit_emissions(): nonpayable
 
 
 event BridgerUpdated:
@@ -50,7 +50,13 @@ def __init__(_owner: address):
 
 @external
 def transmit_emissions(_gauge: address):
-    RootLiquidityGauge(_gauge).transmit()
+    """
+    @notice Call `transmit_emissions` on a root gauge
+    @dev Entrypoint for anycall to request emissions for a child gauge.
+        The way that gauges work, this can also be called on the root
+        chain without a request.
+    """
+    RootLiquidityGauge(_gauge).transmit_emissions()
 
 
 @payable

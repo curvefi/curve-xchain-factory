@@ -8,5 +8,5 @@ def cost() -> uint256:
 
 
 @external
-def transmit(_token: address, _to: address, _amount: uint256):
+def bridge(_token: address, _to: address, _amount: uint256):
     pass

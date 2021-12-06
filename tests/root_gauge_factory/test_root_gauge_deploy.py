@@ -44,10 +44,10 @@ def test_deploy_child_gauge_repeat_salt(alice, chain, root_gauge_factory):
 def test_transmit_emissions(alice, root_gauge_factory):
     src = """
 @external
-def transmit():
+def transmit_emissions():
     pass
     """
     mock = compile_source(src, vyper_version="0.3.1").Vyper.deploy({"from": alice})
     tx = root_gauge_factory.transmit_emissions(mock, {"from": alice})
 
-    assert tx.subcalls[0]["function"] == "transmit()"
+    assert tx.subcalls[0]["function"] == "transmit_emissions()"

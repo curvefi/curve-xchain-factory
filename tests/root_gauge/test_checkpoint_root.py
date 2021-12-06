@@ -62,10 +62,8 @@ def test_transmit(alice, root_gauge, root_gauge_controller, mock_bridger, root_c
 
     chain.mine(timedelta=3 * WEEK)
 
-    tx = root_gauge.transmit({"from": alice})
-    assert tx.subcalls[-1]["function"] == "transmit(address,address,uint256)"
+    tx = root_gauge.transmit_emissions({"from": alice})
+    assert tx.subcalls[-1]["function"] == "bridge(address,address,uint256)"
     assert tx.subcalls[-1]["to"] == mock_bridger
     assert tx.subcalls[-1]["inputs"]["_to"] == root_gauge
     assert tx.subcalls[-1]["inputs"]["_token"] == root_crv_token
-
-    assert root_crv_token.balanceOf(root_gauge) > 0
