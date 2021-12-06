@@ -55,13 +55,20 @@ struct Reward:
     integral: uint256
 
 
+DOMAIN_TYPE_HASH: constant(bytes32) = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+PERMIT_TYPE_HASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
+
 MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
 
 CRV: immutable(address)
 MINTER: immutable(address)
+VERSION: immutable(String[10])
 
+
+DOMAIN_SEPARATOR: public(bytes32)
+nonces: public(HashMap[address, uint256])
 
 name: public(String[64])
 symbol: public(String[32])
@@ -108,6 +115,7 @@ def __init__(_crv_token: address, _minter: address):
 
     CRV = _crv_token
     MINTER = _minter
+    VERSION = "v0.1.0"
 
 
 @internal
@@ -374,6 +382,41 @@ def approve(_spender: address, _value: uint256) -> bool:
 
 
 @external
+def permit(
+    _owner: address,
+    _spender: address,
+    _value: uint256,
+    _deadline: uint256,
+    _v: uint8,
+    _r: bytes32,
+    _s: bytes32
+):
+    """
+    @notice Approves spender by owner's signature to expend owner's tokens.
+        See https://eips.ethereum.org/EIPS/eip-2612.
+    @dev Modified slightly from yearn-vaults
+        See https://github.com/yearn/yearn-vaults/blob/main/contracts/Vault.vy#L743
+    """
+    assert _owner != ZERO_ADDRESS  # dev: invalid owner
+    assert _deadline == 0 or _deadline >= block.timestamp  # dev: permit expired
+
+    nonce: uint256 = self.nonces[_owner]
+    digest: bytes32 = keccak256(
+        concat(
+            b'\x19\x01',
+            self.DOMAIN_SEPARATOR,
+            keccak256(_abi_encode(PERMIT_TYPE_HASH, _owner, _spender, _value, nonce, _deadline))
+        )
+    )
+
+    assert ecrecover(digest, convert(_v, uint256), convert(_r, uint256), convert(_s, uint256)) == _owner  # dev: invalid signature
+
+    self.allowance[_owner][_spender] = _value
+    self.nonces[_owner] = nonce + 1
+    log Approval(_owner, _spender, _value)
+
+
+@external
 @nonreentrant("lock")
 def transfer(_to: address, _value: uint256) -> bool:
     """
@@ -588,23 +631,6 @@ def set_killed(_is_killed: bool):
     self.is_killed = _is_killed
 
 
-@external
-def initialize(_lp_token: address, _manager: address):
-    assert self.factory == ZERO_ADDRESS  # dev: already initialzed
-
-    self.factory = msg.sender
-    self.lp_token = _lp_token
-    self.manager = _manager
-
-    self.voting_escrow = Factory(msg.sender).voting_escrow()
-
-    symbol: String[26] = ERC20Extended(_lp_token).symbol()
-    self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
-    self.symbol = concat(symbol, "-gauge")
-
-    self.period_timestamp[0] = block.timestamp
-
-
 @view
 @external
 def decimals() -> uint256:
@@ -618,3 +644,36 @@ def decimals() -> uint256:
 @external
 def integrate_checkpoint() -> uint256:
     return self.period_timestamp[self.period]
+
+
+@view
+@external
+def VERSION() -> String[10]:
+    return VERSION
+
+
+@external
+def initialize(_lp_token: address, _manager: address):
+    assert self.factory == ZERO_ADDRESS  # dev: already initialzed
+
+    self.factory = msg.sender
+    self.lp_token = _lp_token
+    self.manager = _manager
+
+    self.voting_escrow = Factory(msg.sender).voting_escrow()
+
+    symbol: String[26] = ERC20Extended(_lp_token).symbol()
+    name: String[64] = concat("Curve.fi ", symbol, " Gauge Deposit")
+
+    self.name = name
+    self.symbol = concat(symbol, "-gauge")
+
+    self.period_timestamp[0] = block.timestamp
+    self.DOMAIN_SEPARATOR = keccak256(
+        _abi_encode(
+            DOMAIN_TYPE_HASH,
+            keccak256(name),
+            keccak256(VERSION),
+            chain.id,
+            self,
+    ))
