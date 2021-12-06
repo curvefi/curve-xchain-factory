@@ -82,6 +82,7 @@ def callback(
     _result: Bytes[2048]
 ):
     assert msg.sender == ANYCALL
+    assert _success
 
     # _result == (_chain_id: uint256, _salt: bytes32, _gauge: address)
     gauge: address = Factory(FACTORY).deploy_gauge(convert(extract32(_result, 0), uint256), extract32(_result, 32))
