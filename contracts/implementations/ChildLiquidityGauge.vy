@@ -14,7 +14,6 @@ interface ERC20Extended:
 
 interface Factory:
     def owner() -> address: view
-    def request_emissions(): nonpayable
     def voting_escrow() -> address: view
 
 interface Minter:
@@ -148,16 +147,10 @@ def _checkpoint(_user: address):
             prev_week_time = week_time
             week_time = min(week_time + WEEK, block.timestamp)
 
-    current_week: uint256 = block.timestamp / WEEK
-    # request emissions for this week (once a week)
-    if self.last_request / WEEK < current_week and not self.is_killed:
-        Factory(self.factory).request_emissions()
-        self.last_request = block.timestamp
-
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
     crv_balance: uint256 = ERC20(CRV).balanceOf(self)
     if crv_balance != 0:
-        # increase inflation rate by crv_balance / amount of time remaining in this week since max(last period, week_start)
+        current_week: uint256 = block.timestamp / WEEK
         self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
         ERC20(CRV).transfer(MINTER, crv_balance)
 
