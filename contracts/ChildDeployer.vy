@@ -8,17 +8,21 @@
 
 interface Factory:
     def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address) -> address: nonpayable
-    def set_permitted(_gauge: address, _permission: bool): nonpayable
+
+interface Minter:
+    def set_has_counterpart(_gauge: address, _has_countepart: bool): nonpayable
 
 
 ANYCALL: immutable(address)
 FACTORY: immutable(address)
+MINTER: immutable(address)
 
 
 @external
-def __init__(_anycall: address, _factory: address):
+def __init__(_anycall: address, _factory: address, _minter: address):
     ANYCALL = _anycall
     FACTORY = _factory
+    MINTER = _minter
 
 
 @external
@@ -34,5 +38,5 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address) -> (uint
     assert msg.sender == ANYCALL
 
     gauge: address = Factory(FACTORY).deploy_gauge(_lp_token, _salt, _manager)
-    Factory(FACTORY).set_permitted(gauge, True)
+    Minter(MINTER).set_has_counterpart(gauge, True)
     return chain.id, _salt, gauge
