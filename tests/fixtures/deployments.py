@@ -20,7 +20,7 @@ def anycall(alice, AnyCallProxy):
 
 @pytest.fixture(scope="session")
 def child_gauge_factory(alice, anycall, ChildLiquidityGaugeFactory):
-    return ChildLiquidityGaugeFactory.deploy(anycall, alice, {"from": alice})
+    return ChildLiquidityGaugeFactory.deploy(alice, {"from": alice})
 
 
 @pytest.fixture(scope="session")
@@ -29,8 +29,8 @@ def child_crv_token(alice):
 
 
 @pytest.fixture(scope="session")
-def child_minter(alice, child_gauge_factory, child_crv_token, Minter):
-    return Minter.deploy(child_crv_token, child_gauge_factory, {"from": alice})
+def child_minter(alice, anycall, child_gauge_factory, child_crv_token, Minter):
+    return Minter.deploy(anycall, child_crv_token, child_gauge_factory, {"from": alice})
 
 
 @pytest.fixture(scope="session")
