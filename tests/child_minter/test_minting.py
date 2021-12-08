@@ -50,3 +50,13 @@ def mint(_minter: address, _gauge: address):
 
     tx = child_minter.mint(child_gauge, {"from": alice})
     assert sig in {s.get("function") for s in tx.subcalls}
+
+
+def test_request_only_once_a_week(alice, child_gauge, child_minter):
+    child_minter.set_has_counterpart(child_gauge, True, {"from": alice})
+    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+    tx = child_minter.mint(child_gauge, {"from": alice})
+    assert sig in {s.get("function") for s in tx.subcalls}
+
+    tx = child_minter.mint(child_gauge, {"from": alice})
+    assert sig not in {s.get("function") for s in tx.subcalls}

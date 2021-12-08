@@ -91,6 +91,7 @@ def _mint_for(gauge_addr: address, _for: address, _request: bool):
                 method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
             )
         )
+        self.gauge_data[gauge_addr] = shift(1, 128) + block.timestamp
 
     LiquidityGauge(gauge_addr).user_checkpoint(_for)
     total_mint: uint256 = LiquidityGauge(gauge_addr).integrate_fraction(_for)
