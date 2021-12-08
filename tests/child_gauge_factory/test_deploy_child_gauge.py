@@ -48,22 +48,3 @@ def test_deploy_child_gauge_repeat_salt(alice, child_gauge_factory, lp_token):
 
     with brownie.reverts():
         child_gauge_factory.deploy_gauge(ETH_ADDRESS, 0x0, {"from": alice})
-
-
-def test_request_emissions(alice, child_gauge_factory, lp_token, web3):
-    gauge = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice}).return_value
-    child_gauge_factory.set_permitted(gauge, True, {"from": alice})
-    internal = web3.keccak(text="transmit_emissions(address)")[:4] + abi.encode_single(
-        "address", gauge
-    )
-
-    expected_inputs = {
-        "callbacks": [],
-        "data": [HexString(internal, "bytes")],
-        "nonces": [],
-        "to": [child_gauge_factory.address],
-        "toChainID": 1,
-    }
-
-    tx = child_gauge_factory.request_emissions({"from": gauge})
-    assert tx.subcalls[0]["inputs"] == expected_inputs

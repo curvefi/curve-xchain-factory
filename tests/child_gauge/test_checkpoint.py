@@ -9,24 +9,6 @@ def setup(alice, child_gauge, lp_token):
     lp_token._mint_for_testing(alice, 10 ** 21, {"from": alice})
 
 
-def test_request_frequency(alice, chain, child_gauge):
-    # go to start of next week + day
-    chain.mine(timestamp=(chain.time() // WEEK) * WEEK + WEEK + 86400)
-
-    # new gauge, so first deposit should update last request timestamp
-    assert child_gauge.last_request() == 0
-    tx = child_gauge.deposit(10 ** 21, {"from": alice})
-    assert child_gauge.last_request() == tx.timestamp
-    assert any((call["function"] == "request_emissions()" for call in tx.subcalls))
-
-    # sleep another day (still within the same week)
-    chain.sleep(86400)
-    tx2 = child_gauge.user_checkpoint(alice, {"from": alice})
-    # last request is still the same
-    assert child_gauge.last_request() == tx.timestamp
-    assert all((call["function"] != "request_emissions()" for call in tx2.subcalls))
-
-
 def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, child_minter):
     chain.mine(timestamp=(chain.time() // WEEK) * WEEK + WEEK + 86400)
     child_gauge.deposit(10 ** 21, {"from": alice})
