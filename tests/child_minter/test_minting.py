@@ -1,6 +1,7 @@
 import math
 
 import pytest
+from brownie import compile_source
 
 WEEK = 86400 * 7
 
@@ -28,3 +29,24 @@ def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, ch
 
     child_minter.mint(child_gauge, {"from": alice})
     assert math.isclose(child_crv_token.balanceOf(alice), 10 ** 24)
+
+
+def test_request_only_if_called_by_EOA(alice, child_gauge, child_minter):
+    child_minter.set_has_counterpart(child_gauge, True, {"from": alice})
+    src = """
+interface Minter:
+    def mint(_gauge: address): nonpayable
+
+@external
+def mint(_minter: address, _gauge: address):
+    Minter(_minter).mint(_gauge)
+    """
+
+    mock = compile_source(src, vyper_version="0.3.1").Vyper.deploy({"from": alice})
+    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+
+    tx = mock.mint(child_minter, child_gauge, {"from": alice})
+    assert sig not in {s.get("function") for s in tx.subcalls}
+
+    tx = child_minter.mint(child_gauge, {"from": alice})
+    assert sig in {s.get("function") for s in tx.subcalls}
