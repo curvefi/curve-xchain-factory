@@ -104,7 +104,6 @@ reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
 claim_data: HashMap[address, HashMap[address, uint256]]
 
 is_killed: public(bool)
-last_request: public(uint256)
 inflation_rate: public(HashMap[uint256, uint256])
 
 
