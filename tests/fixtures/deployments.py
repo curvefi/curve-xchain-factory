@@ -33,9 +33,11 @@ def child_minter(alice, anycall, child_gauge_factory, child_crv_token, Minter):
     return Minter.deploy(anycall, child_crv_token, child_gauge_factory, {"from": alice})
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def child_manager(alice, anycall, child_gauge_factory, child_minter, ChildManager):
-    return ChildManager.deploy(anycall, child_gauge_factory, child_minter, {"from": alice})
+    manager = ChildManager.deploy(anycall, child_gauge_factory, child_minter, {"from": alice})
+    child_minter.set_manager(manager, {"from": alice})
+    return manager
 
 
 @pytest.fixture(scope="session")
