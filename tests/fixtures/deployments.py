@@ -34,6 +34,11 @@ def child_minter(alice, anycall, child_gauge_factory, child_crv_token, Minter):
 
 
 @pytest.fixture(scope="session")
+def child_manager(alice, anycall, child_gauge_factory, child_minter, ChildManager):
+    return ChildManager.deploy(anycall, child_gauge_factory, child_minter, {"from": alice})
+
+
+@pytest.fixture(scope="session")
 def lp_token(alice):
     return ERC20("Dummy LP Token", "dLP", 18, deployer=alice)
 
@@ -99,6 +104,11 @@ def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
 @pytest.fixture(scope="session")
 def root_gauge_factory(alice, RootLiquidityGaugeFactory):
     return RootLiquidityGaugeFactory.deploy(alice, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def root_manager(alice, anycall, root_gauge_factory, root_voting_escrow, RootManager):
+    return RootManager.deploy(anycall, root_gauge_factory, root_voting_escrow, {"from": alice})
 
 
 @pytest.fixture(scope="module")
