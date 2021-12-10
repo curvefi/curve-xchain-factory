@@ -127,7 +127,7 @@ def deploy_gauge(_chain_id: uint256, _lp_token: address, _manager: address = msg
             convert(1, uint256),  # number of address elements - 14
             self,  # 15
             convert(1, uint256),  # number of uint256 elements - 16
-            convert(1, uint256),  # 17
+            convert(0, uint256),  # 17
             method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
         )
     )
