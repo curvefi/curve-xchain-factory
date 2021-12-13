@@ -23,6 +23,10 @@ event Minted:
     gauge: address
     minted: uint256
 
+event TransferOwnership:
+    _old_owner: address
+    _new_owner: address
+
 
 struct ByteArray:
     position: uint256
@@ -46,6 +50,8 @@ allowed_to_mint_for: public(HashMap[address, HashMap[address, bool]])
 # [last_request][has_counterpart]
 gauge_data: HashMap[address, uint256]
 
+owner: public(address)
+future_owner: public(address)
 manager: public(address)
 
 
@@ -55,7 +61,10 @@ def __init__(_anycall: address, _token: address, _factory: address):
     TOKEN = _token
     FACTORY = _factory
 
+    self.owner = msg.sender
     self.manager = msg.sender
+
+    log TransferOwnership(ZERO_ADDRESS, msg.sender)
 
 
 @internal
@@ -164,7 +173,7 @@ def set_has_counterpart(_gauge: address, _has_counterpart: bool):
     """
     @notice Set boolean denoting a gauge has a root counterpart
     """
-    assert msg.sender == self.manager
+    assert msg.sender == self.manager or msg.sender == self.owner
 
     self.gauge_data[_gauge] = shift(convert(_has_counterpart, uint256), 128) + self.gauge_data[_gauge] % 2 ** 128
 
@@ -177,9 +186,24 @@ def set_manager(_new_manager: address):
         automatic requests to bridge emissions. Emissions can still be manually bridged and
         the system will still work.
     """
-    assert msg.sender == self.manager
+    assert msg.sender == self.owner
 
     self.manager = _new_manager
+
+
+@external
+def commit_transfer_ownership(_future_owner: address):
+    assert msg.sender == self.owner
+
+    self.future_owner = msg.sender
+
+
+@external
+def accept_transfer_ownership():
+    assert msg.sender == self.future_owner
+
+    log TransferOwnership(self.owner, msg.sender)
+    self.owner = msg.sender
 
 
 @view
