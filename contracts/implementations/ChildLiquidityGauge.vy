@@ -54,7 +54,7 @@ struct Reward:
     integral: uint256
 
 
-DOMAIN_TYPE_HASH: constant(bytes32) = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+DOMAIN_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 PERMIT_TYPE_HASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
 
 MAX_REWARDS: constant(uint256) = 8
@@ -382,7 +382,7 @@ def permit(
     _v: uint8,
     _r: bytes32,
     _s: bytes32
-):
+) -> bool:
     """
     @notice Approves spender by owner's signature to expend owner's tokens.
         See https://eips.ethereum.org/EIPS/eip-2612.
@@ -390,12 +390,12 @@ def permit(
         See https://github.com/yearn/yearn-vaults/blob/main/contracts/Vault.vy#L743
     """
     assert _owner != ZERO_ADDRESS  # dev: invalid owner
-    assert _deadline == 0 or _deadline >= block.timestamp  # dev: permit expired
+    assert _deadline >= block.timestamp  # dev: permit expired
 
     nonce: uint256 = self.nonces[_owner]
     digest: bytes32 = keccak256(
         concat(
-            b'\x19\x01',
+            b"\x19\x01",
             self.DOMAIN_SEPARATOR,
             keccak256(_abi_encode(PERMIT_TYPE_HASH, _owner, _spender, _value, nonce, _deadline))
         )
@@ -405,7 +405,9 @@ def permit(
 
     self.allowance[_owner][_spender] = _value
     self.nonces[_owner] = nonce + 1
+
     log Approval(_owner, _spender, _value)
+    return True
 
 
 @external
@@ -640,7 +642,7 @@ def integrate_checkpoint() -> uint256:
 
 @view
 @external
-def VERSION() -> String[10]:
+def version() -> String[10]:
     return VERSION
 
 
@@ -667,5 +669,6 @@ def initialize(_lp_token: address, _manager: address):
             keccak256(name),
             keccak256(VERSION),
             chain.id,
-            self,
-    ))
+            self
+        )
+    )
