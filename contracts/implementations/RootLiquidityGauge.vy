@@ -17,6 +17,7 @@ interface CRV20:
 interface ERC20:
     def balanceOf(_account: address) -> uint256: view
     def approve(_account: address, _value: uint256): nonpayable
+    def transfer(_to: address, _amount: uint256): nonpayable
 
 interface GaugeController:
     def checkpoint_gauge(addr: address): nonpayable
@@ -84,6 +85,8 @@ def transmit_emissions():
 
     assert minted != 0  # dev: nothing minted
     bridger: address = self.bridger
+
+    ERC20(CRV).transfer(bridger, minted)
     Bridger(bridger).bridge(CRV, self, minted, value=Bridger(bridger).cost())
 
 
@@ -154,8 +157,7 @@ def set_killed(_is_killed: bool):
     @notice Set the gauge kill status
     @dev Inflation params are modified accordingly to disable/enable emissions
     """
-    factory: address = self.factory
-    assert msg.sender == Factory(factory).owner()
+    assert msg.sender == Factory(self.factory).owner()
 
     if _is_killed:
         self.inflation_params.rate = 0
@@ -174,11 +176,7 @@ def update_bridger():
     @notice Update the bridger used by this contract
     @dev Bridger contracts should prevent briding if ever updated
     """
-    ERC20(CRV).approve(self.bridger, 0)
-
-    bridger: address = Factory(self.factory).get_bridger(self.chain_id)
-    self.bridger = bridger
-    ERC20(CRV).approve(bridger, MAX_UINT256)
+    self.bridger = Factory(self.factory).get_bridger(self.chain_id)
 
 
 @external
@@ -200,5 +198,3 @@ def initialize(_bridger: address, _chain_id: uint256):
 
     self.inflation_params = inflation_params
     self.last_period = block.timestamp / WEEK
-
-    ERC20(CRV).approve(_bridger, MAX_UINT256)
