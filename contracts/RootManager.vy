@@ -7,9 +7,18 @@
 from vyper.interfaces import ERC20
 
 
+interface AnyCall:
+    def encode(_sig: String[128], _data: Bytes[256]) -> ByteArray: pure
+
 interface Factory:
     def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address: nonpayable
     def get_bridger(_chain_id: uint256) -> address: view
+
+
+struct ByteArray:
+    position: uint256
+    length: uint256
+    data: uint256[4]
 
 
 ANYCALL: immutable(address)
@@ -33,25 +42,14 @@ def deploy_gauge(_chain_id: uint256, _lp_token: address, _manager: address = msg
     @param _lp_token The lp token of the pool on the child chain to deploy the gauge for
     @param _manager The address which will manager external rewards for the child gauge
     """
-    assert msg.sender == tx.origin
     assert Factory(FACTORY).get_bridger(_chain_id) != ZERO_ADDRESS
 
     salt: bytes32 = self.salt
     self.salt = keccak256(salt)
 
-    data: uint256[4] = [
-        convert(method_id("deploy_gauge(address,bytes32,address)", output_type=bytes32), uint256),
-        convert(_lp_token, uint256),
-        convert(salt, uint256),
-        convert(_manager, uint256),
-    ]
-
-    array: uint256[4] = [
-        bitwise_or(shift(data[0], 224), shift(data[1], -32)),
-        bitwise_or(shift(data[1], 224), shift(data[2], -32)),
-        bitwise_or(shift(data[2], 224), shift(data[3], -32)),
-        shift(data[3], 224)
-    ]
+    data: uint256[4] = AnyCall(ANYCALL).encode(
+        "deploy_gauge(address,bytes32,address)", _abi_encode(_lp_token, salt, _manager)
+    ).data
 
     # send the request cross-chain
     raw_call(
@@ -67,7 +65,7 @@ def deploy_gauge(_chain_id: uint256, _lp_token: address, _manager: address = msg
             convert(1, uint256),  # number of bytes elements - 7
             convert(32, uint256),  # bytes start pos - 8
             convert(100, uint256),  # length in bytes - 9
-            array,  # bytes right padded - 10/11/12/13
+            data,  # bytes right padded - 10/11/12/13
             convert(1, uint256),  # number of address elements - 14
             self,  # 15
             convert(1, uint256),  # number of uint256 elements - 16
