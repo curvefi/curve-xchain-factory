@@ -68,12 +68,12 @@ def __init__(_anycall: address, _token: address, _factory: address):
 
 
 @internal
-def _mint_for(gauge_addr: address, _for: address, _request: bool):
+def _mint_for(gauge_addr: address, _for: address):
     assert Factory(FACTORY).is_valid_gauge(gauge_addr)  # dev: invalid gauge
 
     gauge_data: uint256 = self.gauge_data[gauge_addr]
     # if has root counterpart & request was made before this week
-    if _request and shift(gauge_data, -128) == 1 and gauge_data % 2 ** 128 / WEEK < block.timestamp / WEEK:
+    if shift(gauge_data, -128) == 1 and gauge_data % 2 ** 128 / WEEK < block.timestamp / WEEK:
 
         # cost is negligible on sidechains no need to hand roll abi.encodePacked
         data: uint256[2] = AnyCall(ANYCALL).encode(
@@ -130,7 +130,7 @@ def mint(gauge_addr: address):
     @notice Mint everything which belongs to `msg.sender` and send to them
     @param gauge_addr `LiquidityGauge` address to get mintable amount from
     """
-    self._mint_for(gauge_addr, msg.sender, tx.origin == msg.sender)
+    self._mint_for(gauge_addr, msg.sender)
 
 
 @external
@@ -143,7 +143,7 @@ def mint_many(gauge_addrs: address[8]):
     for i in range(8):
         if gauge_addrs[i] == ZERO_ADDRESS:
             break
-        self._mint_for(gauge_addrs[i], msg.sender, tx.origin == msg.sender)
+        self._mint_for(gauge_addrs[i], msg.sender)
 
 
 @external
@@ -156,7 +156,7 @@ def mint_for(gauge_addr: address, _for: address):
     @param _for Address to mint to
     """
     if self.allowed_to_mint_for[msg.sender][_for]:
-        self._mint_for(gauge_addr, _for, tx.origin == msg.sender)
+        self._mint_for(gauge_addr, _for)
 
 
 @external
