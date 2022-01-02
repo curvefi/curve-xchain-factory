@@ -48,6 +48,33 @@ def __init__(_owner: address):
     log TransferOwnership(ZERO_ADDRESS, _owner)
 
 
+@internal
+def _deploy_gauge(
+    _chain_id: uint256, _salt: bytes32, _msg_sender: address, _msg_value: uint256
+) -> address:
+    """
+    @dev Internal method for deploying gauges
+    """
+    bridger: address = self.get_bridger[_chain_id]
+    assert bridger != ZERO_ADDRESS  # dev: chain id not supported
+
+    implementation: address = self.get_implementation
+    gauge: address = create_forwarder_to(
+        implementation,
+        value=_msg_value,
+        salt=keccak256(_abi_encode(_chain_id, _msg_sender, _salt))
+    )
+
+    idx: uint256 = self.get_gauge_count[_chain_id]
+    self.get_gauge[_chain_id][idx] = gauge
+    self.get_gauge_count[_chain_id] = idx + 1
+
+    RootLiquidityGauge(gauge).initialize(bridger, _chain_id)
+
+    log DeployedGauge(implementation, _chain_id, _msg_sender, _salt, gauge)
+    return gauge
+
+
 @external
 def transmit_emissions(_gauge: address):
     """
@@ -67,22 +94,7 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
     @param _chain_id The chain identifier of the counterpart child gauge
     @param _salt A value to deterministically deploy a gauge
     """
-    bridger: address = self.get_bridger[_chain_id]
-    assert bridger != ZERO_ADDRESS  # dev: chain id not supported
-
-    implementation: address = self.get_implementation
-    gauge: address = create_forwarder_to(
-        implementation, value=msg.value, salt=keccak256(_abi_encode(_chain_id, msg.sender, _salt))
-    )
-
-    idx: uint256 = self.get_gauge_count[_chain_id]
-    self.get_gauge[_chain_id][idx] = gauge
-    self.get_gauge_count[_chain_id] = idx + 1
-
-    RootLiquidityGauge(gauge).initialize(bridger, _chain_id)
-
-    log DeployedGauge(implementation, _chain_id, msg.sender, _salt, gauge)
-    return gauge
+    return self._deploy_gauge(_chain_id, _salt, msg.sender, msg.value)
 
 
 @external
