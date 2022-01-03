@@ -37,6 +37,7 @@ get_implementation: public(address)
 
 get_gauge: public(HashMap[uint256, address[MAX_UINT256]])
 get_gauge_count: public(HashMap[uint256, uint256])
+is_valid_gauge: public(HashMap[address, bool])
 
 owner: public(address)
 future_owner: public(address)
@@ -68,6 +69,7 @@ def _deploy_gauge(
     idx: uint256 = self.get_gauge_count[_chain_id]
     self.get_gauge[_chain_id][idx] = gauge
     self.get_gauge_count[_chain_id] = idx + 1
+    self.is_valid_gauge[gauge] = True
 
     RootLiquidityGauge(gauge).initialize(bridger, _chain_id)
 
