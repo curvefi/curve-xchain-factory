@@ -98,6 +98,30 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
 
 
 @external
+def callback(
+    _to: address,
+    _data: Bytes[128],
+    _nonces: uint256,
+    _from_chain_id: uint256,
+    _success: bool,
+    _result: Bytes[32],
+):
+    """
+    @notice Deploy a gauge automatically after successfully performing a cross chain call
+    @param _to The target of the cross chain call performed via AnyswapV4CallProxy#anyCall
+    @param _data The calldata supplied to perform a cross chain call
+    @param _nonces The position of the callback in the list of callbacks
+    @param _from_chain_id The chain id of the target cross chain call
+    @param _success Whether call was successful
+    @param _result The return data from the cross chain call
+    """
+    assert _to == self  # dev: invalid target
+    assert slice(_data, 0, 4) == method_id("deploy_gauge(address,bytes32,address)")  # dev: invalid method
+    assert _success  # dev: operation unsuccessful
+    assert self._deploy_gauge(_from_chain_id, extract32(_data, 36), msg.sender, 0) == extract32(_result, 0, output_type=address)
+
+
+@external
 def set_bridger(_chain_id: uint256, _bridger: address):
     """
     @notice Set the bridger for `_chain_id`
