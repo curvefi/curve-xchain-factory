@@ -4,11 +4,11 @@ pragma solidity ^0.8.6;
 
 // MPC management means multi-party validation.
 // MPC signing likes Multi-Signature is more secure than use private key directly.
-contract MPCManageable {
+abstract contract MPCManageable {
     address public mpc;
     address public pendingMPC;
 
-    uint256 public constant delay = 2*24*3600;
+    uint256 public constant delay = 2 days;
     uint256 public delayMPC;
 
     modifier onlyMPC() {
@@ -19,12 +19,12 @@ contract MPCManageable {
     event LogChangeMPC(
         address indexed oldMPC,
         address indexed newMPC,
-        uint256 indexed effectiveTime);
+        uint256 effectiveTime);
 
     event LogApplyMPC(
         address indexed oldMPC,
         address indexed newMPC,
-        uint256 indexed applyTime);
+        uint256 applyTime);
 
     constructor(address _mpc) {
         require(_mpc != address(0), "MPC: mpc is the zero address");
@@ -50,51 +50,126 @@ contract MPCManageable {
 }
 
 // support limit operations to whitelist
-contract Whitelistable is MPCManageable {
-    bool public whitelistEnabled;
-    mapping(address => bool) public isInWhitelist;
+abstract contract Whitelistable is MPCManageable {
+    mapping(address => mapping(uint256 => mapping(address => bool))) public isInWhitelist;
+    mapping(address => mapping(uint256 => address[])) public whitelists;
+    mapping(address => bool) public isBlacklisted;
 
-    event LogSetWhitelist(address indexed to, bool indexed flag);
+    event LogSetWhitelist(address indexed from, uint256 indexed chainID, address indexed to, bool flag);
 
-    modifier onlyWhitelist(address[] memory to) {
-        if (whitelistEnabled) {
-            for (uint256 i = 0; i < to.length; i++) {
-                require(isInWhitelist[to[i]], "AnyCall: to address is not in whitelist");
-            }
+    modifier onlyWhitelisted(address from, uint256 chainID, address[] memory to) {
+        mapping(address => bool) storage map = isInWhitelist[from][chainID];
+        for (uint256 i = 0; i < to.length; i++) {
+            require(map[to[i]], "AnyCall: to address is not in whitelist");
         }
         _;
     }
 
-    constructor(address _mpc) MPCManageable(_mpc) {
-        whitelistEnabled = true;
+    constructor(address _mpc) MPCManageable(_mpc) {}
+
+    /**
+        @notice Query the number of elements in the whitelist of `whitelists[from][chainID]`
+        @param from The initiator of a cross chain interaction
+        @param chainID The target chain's identifier
+        @return uint256 The length of addresses `from` is allowed to call on `chainID`
+    */
+    function whitelistLength(address from, uint256 chainID) external view returns (uint256) {
+        return whitelists[from][chainID].length;
     }
 
-    function enableWhitelist() external onlyMPC {
-        whitelistEnabled = true;
+    /**
+        @notice Approve/Revoke a caller's permissions to initiate a cross chain interaction
+        @param from The initiator of a cross chain interaction
+        @param chainID The target chain's identifier
+        @param to The address of the target `from` is being allowed/disallowed to call
+        @param flag Boolean denoting whether permissions is being granted/denied
+    */
+    function whitelist(address from, uint256 chainID, address to, bool flag) external onlyMPC {
+        require(isInWhitelist[from][chainID][to] != flag, "nothing change");
+        address[] storage list = whitelists[from][chainID];
+        if (flag) {
+            list.push(to);
+        } else {
+            uint256 length = list.length;
+            for (uint i = 0; i < length; i++) {
+                if (list[i] == to) {
+                    if (i + 1 < length) {
+                        list[i] = list[length-1];
+                    }
+                    list.pop();
+                    break;
+                }
+            }
+        }
+        isInWhitelist[from][chainID][to] = flag;
+        emit LogSetWhitelist(from, chainID, to, flag);
     }
 
-    function disableWhitelist() external onlyMPC {
-        whitelistEnabled = false;
-    }
-
-    function whitelist(address to, bool flag) external onlyMPC {
-        isInWhitelist[to] = flag;
-        emit LogSetWhitelist(to, flag);
+    function blacklist(address account, bool flag) external onlyMPC {
+        isBlacklisted[account] = flag;
     }
 }
 
-contract AnyCallProxy is Whitelistable {
-    uint256 public immutable cID;
+abstract contract Billable is Whitelistable {
+    event Fund(address indexed beneficiary, uint256 amount);
 
+    mapping(address => int256) public funds;
+    uint256 public expenses;
+
+    modifier bill(address originator) {
+        uint256 gas = gasleft();
+        _;
+        uint256 cost = (gas - gasleft()) * tx.gasprice;
+        funds[originator] -= int256(cost); // potential insufficient balances
+        expenses += cost;
+    }
+
+    constructor(address _mpc) Whitelistable(_mpc) {}
+
+    function fund(address beneficiary) external payable {
+        funds[beneficiary] += int256(msg.value);
+        emit Fund(beneficiary, msg.value);
+    }
+
+    function refundMPC() external {
+        uint256 amount = expenses;
+        if (address(this).balance >= amount) {
+            expenses = 0;
+            mpc.call{value: amount}("");
+        } else {
+            expenses = amount - address(this).balance;
+            mpc.call{value: address(this).balance}("");
+        }
+    }
+}
+
+contract AnyCallProxy is Billable {
     event LogAnyCall(address indexed from, address[] to, bytes[] data,
                      address[] callbacks, uint256[] nonces, uint256 fromChainID, uint256 toChainID);
     event LogAnyExec(address indexed from, address[] to, bytes[] data, bool[] success, bytes[] result,
                      address[] callbacks, uint256[] nonces, uint256 fromChainID, uint256 toChainID);
 
-    constructor(address _mpc) Whitelistable(_mpc) {
-        uint256 id;
-        assembly {id := chainid()}
-        cID = id;
+    struct Context {
+        address sender;
+        uint256 fromChainID;
+    }
+
+    Context public context;
+
+    uint private unlocked = 1;
+    modifier lock() {
+        require(unlocked == 1, 'AnyCall: LOCKED');
+        unlocked = 0;
+        _;
+        unlocked = 1;
+    }
+
+    constructor(address _mpc) Billable(_mpc) {}
+
+    // @notice Query the chainID of this contract
+    // @dev Implemented as a view function so it is less expensive. CHAINID < PUSH32
+    function cID() external view returns (uint256) {
+        return block.chainid;
     }
 
     /**
@@ -112,8 +187,10 @@ contract AnyCallProxy is Whitelistable {
         address[] memory callbacks,
         uint256[] memory nonces,
         uint256 toChainID
-    ) external onlyWhitelist(to) {
-        emit LogAnyCall(msg.sender, to, data, callbacks, nonces, cID, toChainID);
+    ) external onlyWhitelisted(msg.sender, toChainID, to) {
+        require(toChainID != block.chainid, "AnyCall: FORBID");
+        require(!isBlacklisted[msg.sender]);
+        emit LogAnyCall(msg.sender, to, data, callbacks, nonces, block.chainid, toChainID);
     }
 
     function anyCall(
@@ -123,47 +200,25 @@ contract AnyCallProxy is Whitelistable {
         address[] memory callbacks,
         uint256[] memory nonces,
         uint256 fromChainID
-    ) external onlyMPC {
+    ) external onlyMPC lock bill(from) {
+        require(from != address(this) && from != address(0), "AnyCall: FORBID");
+        require(!isBlacklisted[from]);
+
         uint256 length = to.length;
         bool[] memory success = new bool[](length);
         bytes[] memory results = new bytes[](length);
+
+        context = Context({sender: from, fromChainID: fromChainID});
+
         for (uint256 i = 0; i < length; i++) {
             address _to = to[i];
-            if (!whitelistEnabled || isInWhitelist[_to]) {
+            if (isInWhitelist[from][block.chainid][_to]) {
                 (success[i], results[i]) = _to.call{value:0}(data[i]);
             } else {
                 (success[i], results[i]) = (false, "forbid calling");
             }
         }
-        emit LogAnyExec(from, to, data, success, results, callbacks, nonces, fromChainID, cID);
-    }
-
-    function encode(
-        string memory signature,
-        bytes memory data
-    ) external pure returns (bytes memory) {
-        return abi.encodePacked(bytes4(keccak256(bytes(signature))), data);
-    }
-
-    function encodePermit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external pure returns (bytes memory) {
-        return abi.encodeWithSignature(
-            "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
-            owner, spender, value, deadline, v, r, s);
-    }
-
-    function encodeTransferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) external pure returns (bytes memory) {
-        return abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)",
-            sender, recipient, amount);
+        context = Context({sender: from, fromChainID: 0});
+        emit LogAnyExec(from, to, data, success, results, callbacks, nonces, fromChainID, block.chainid);
     }
 }
