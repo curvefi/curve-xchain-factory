@@ -6,9 +6,6 @@
 """
 
 
-interface CallProxy:
-    def encode(_sig: String[32], _data: Bytes[32]) -> ByteArray: pure
-
 interface ChildLiquidityGauge:
     def initialize(_lp_token: address, _manager: address): nonpayable
     def integrate_fraction(_user: address) -> uint256: view
@@ -46,6 +43,8 @@ struct ByteArray:
     data: uint256[2]
 
 
+# uint256(method_id("transmit_emissions(address)", output_type=bytes32)) << 224
+SELECTOR: constant(uint256) = 8028065356917769638552618317072897550801200731460208786748395414364255944704
 WEEK: constant(uint256) = 86400 * 7
 
 
@@ -85,9 +84,10 @@ def _psuedo_mint(_gauge: address, _user: address):
 
     # if is_mirrored and last_request != this week
     if bitwise_and(gauge_data, 2) != 0 and shift(gauge_data, -2) / WEEK != block.timestamp / WEEK:
-        data: uint256[2] = CallProxy(CALL_PROXY).encode(
-            "transmit_emissions(address)", _abi_encode(_gauge)
-        ).data
+        data: uint256[2] = [
+            SELECTOR + shift(convert(_gauge, uint256), -32),
+            shift(convert(_gauge, uint256), 224)
+        ]
 
         raw_call(
             CALL_PROXY,
