@@ -19,6 +19,9 @@ interface Factory:
 interface Minter:
     def minted(_user: address, _gauge: address) -> uint256: view
 
+interface ERC1271:
+    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
+
 
 event Approval:
     _owner: indexed(address)
@@ -56,14 +59,16 @@ struct Reward:
 
 DOMAIN_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 PERMIT_TYPE_HASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
+ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 
 MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
+VERSION: constant(String[8]) = "v0.1.0"
+
 
 CRV: immutable(address)
-MINTER: immutable(address)
-VERSION: immutable(String[10])
+FACTORY: immutable(address)
 
 
 DOMAIN_SEPARATOR: public(bytes32)
@@ -76,7 +81,6 @@ allowance: public(HashMap[address, HashMap[address, uint256]])
 balanceOf: public(HashMap[address, uint256])
 totalSupply: public(uint256)
 
-factory: public(address)
 lp_token: public(address)
 manager: public(address)
 
@@ -108,12 +112,11 @@ inflation_rate: public(HashMap[uint256, uint256])
 
 
 @external
-def __init__(_crv_token: address, _minter: address):
-    self.factory = 0x000000000000000000000000000000000000dEaD
+def __init__(_crv_token: address, _factory: address):
+    self.lp_token = 0x000000000000000000000000000000000000dEaD
 
     CRV = _crv_token
-    MINTER = _minter
-    VERSION = "v0.1.0"
+    FACTORY = _factory
 
 
 @internal
@@ -151,7 +154,7 @@ def _checkpoint(_user: address):
     if crv_balance != 0:
         current_week: uint256 = block.timestamp / WEEK
         self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
-        ERC20(CRV).transfer(MINTER, crv_balance)
+        ERC20(CRV).transfer(FACTORY, crv_balance)
 
     period += 1
     self.period = period
@@ -386,11 +389,20 @@ def permit(
     """
     @notice Approves spender by owner's signature to expend owner's tokens.
         See https://eips.ethereum.org/EIPS/eip-2612.
-    @dev Modified slightly from yearn-vaults
-        See https://github.com/yearn/yearn-vaults/blob/main/contracts/Vault.vy#L743
+    @dev Inspired by https://github.com/yearn/yearn-vaults/blob/main/contracts/Vault.vy#L753-L793
+    @dev Supports smart contract wallets which implement ERC1271
+        https://eips.ethereum.org/EIPS/eip-1271
+    @param _owner The address which is a source of funds and has signed the Permit.
+    @param _spender The address which is allowed to spend the funds.
+    @param _value The amount of tokens to be spent.
+    @param _deadline The timestamp after which the Permit is no longer valid.
+    @param _v The bytes[64] of the valid secp256k1 signature of permit by owner
+    @param _r The bytes[0:32] of the valid secp256k1 signature of permit by owner
+    @param _s The bytes[32:64] of the valid secp256k1 signature of permit by owner
+    @return True, if transaction completes successfully
     """
-    assert _owner != ZERO_ADDRESS  # dev: invalid owner
-    assert _deadline >= block.timestamp  # dev: permit expired
+    assert _owner != ZERO_ADDRESS
+    assert block.timestamp <= _deadline
 
     nonce: uint256 = self.nonces[_owner]
     digest: bytes32 = keccak256(
@@ -401,7 +413,11 @@ def permit(
         )
     )
 
-    assert ecrecover(digest, convert(_v, uint256), convert(_r, uint256), convert(_s, uint256)) == _owner  # dev: invalid signature
+    if _owner.is_contract:
+        sig: Bytes[65] = concat(_abi_encode(_r, _s), slice(convert(_v, bytes32), 31, 1))
+        assert ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL
+    else:
+        assert ecrecover(digest, convert(_v, uint256), convert(_r, uint256), convert(_s, uint256)) == _owner
 
     self.allowance[_owner][_spender] = _value
     self.nonces[_owner] = nonce + 1
@@ -464,7 +480,7 @@ def user_checkpoint(addr: address) -> bool:
     @param addr User address
     @return bool success
     """
-    assert msg.sender in [addr, MINTER]  # dev: unauthorized
+    assert msg.sender in [addr, FACTORY]  # dev: unauthorized
     self._checkpoint(addr)
     self._update_liquidity_limit(addr, self.balanceOf[addr], self.totalSupply)
     return True
@@ -478,7 +494,7 @@ def claimable_tokens(addr: address) -> uint256:
     @return uint256 number of claimable tokens per user
     """
     self._checkpoint(addr)
-    return self.integrate_fraction[addr] - Minter(MINTER).minted(addr, self)
+    return self.integrate_fraction[addr] - Minter(FACTORY).minted(addr, self)
 
 
 @view
@@ -545,7 +561,7 @@ def add_reward(_reward_token: address, _distributor: address):
     """
     @notice Set the active reward contract
     """
-    assert msg.sender == self.manager or msg.sender == Factory(self.factory).owner()
+    assert msg.sender == self.manager or msg.sender == Factory(FACTORY).owner()
 
     reward_count: uint256 = self.reward_count
     assert reward_count < MAX_REWARDS
@@ -560,7 +576,7 @@ def add_reward(_reward_token: address, _distributor: address):
 def set_reward_distributor(_reward_token: address, _distributor: address):
     current_distributor: address = self.reward_data[_reward_token].distributor
 
-    assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == Factory(self.factory).owner()
+    assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == Factory(FACTORY).owner()
     assert current_distributor != ZERO_ADDRESS
     assert _distributor != ZERO_ADDRESS
 
@@ -601,7 +617,7 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
 
 @external
 def set_manager(_manager: address):
-    assert msg.sender == Factory(self.factory).owner()
+    assert msg.sender == Factory(FACTORY).owner()
 
     self.manager = _manager
 
@@ -611,7 +627,7 @@ def update_voting_escrow():
     """
     @notice Update the voting escrow contract in storage
     """
-    self.voting_escrow = Factory(self.factory).voting_escrow()
+    self.voting_escrow = Factory(FACTORY).voting_escrow()
 
 
 @external
@@ -620,7 +636,7 @@ def set_killed(_is_killed: bool):
     @notice Set the kill status of the gauge
     @param _is_killed Kill status to put the gauge into
     """
-    assert msg.sender == Factory(self.factory).owner()
+    assert msg.sender == Factory(FACTORY).owner()
 
     self.is_killed = _is_killed
 
@@ -642,15 +658,20 @@ def integrate_checkpoint() -> uint256:
 
 @view
 @external
-def version() -> String[10]:
+def version() -> String[8]:
     return VERSION
+
+
+@view
+@external
+def factory() -> address:
+    return FACTORY
 
 
 @external
 def initialize(_lp_token: address, _manager: address):
-    assert self.factory == ZERO_ADDRESS  # dev: already initialzed
+    assert self.lp_token == ZERO_ADDRESS  # dev: already initialzed
 
-    self.factory = msg.sender
     self.lp_token = _lp_token
     self.manager = _manager
 
