@@ -55,17 +55,25 @@ abstract contract Whitelistable is MPCManageable {
     mapping(address => mapping(uint256 => address[])) public whitelists;
     mapping(address => bool) public isBlacklisted;
 
+    bool public disabled;
+
     event LogSetWhitelist(address indexed from, uint256 indexed chainID, address indexed to, bool flag);
 
     modifier onlyWhitelisted(address from, uint256 chainID, address[] memory to) {
-        mapping(address => bool) storage map = isInWhitelist[from][chainID];
-        for (uint256 i = 0; i < to.length; i++) {
-            require(map[to[i]], "AnyCall: to address is not in whitelist");
+        if (!disabled) {
+            mapping(address => bool) storage map = isInWhitelist[from][chainID];
+            for (uint256 i = 0; i < to.length; i++) {
+                require(map[to[i]], "AnyCall: to address is not in whitelist");
+            }
         }
         _;
     }
 
     constructor(address _mpc) MPCManageable(_mpc) {}
+
+    function disableWhitelist() external onlyMPC {
+        disabled = true;
+    }
 
     /**
         @notice Query the number of elements in the whitelist of `whitelists[from][chainID]`
