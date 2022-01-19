@@ -105,11 +105,17 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
     @param _chain_id The chain identifier of the counterpart child gauge
     @param _salt A value to deterministically deploy a gauge
     """
+    bridger: address = self.get_bridger[_chain_id]
+    assert bridger != ZERO_ADDRESS  # dev: chain id not supported
+
     return self._deploy_gauge(_chain_id, _salt, msg.sender, msg.value)
 
 
 @external
 def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _manager: address = msg.sender):
+    bridger: address = self.get_bridger[_chain_id]
+    assert bridger != ZERO_ADDRESS  # dev: chain id not supported
+
     data: uint256[4] = [
         SELECTOR + shift(convert(_lp_token, uint256), -32),
         shift(convert(_lp_token, uint256), 224) + shift(convert(_salt, uint256), -32),
@@ -124,7 +130,7 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
             convert(224, uint256),  # bytes[] - 1
             convert(448, uint256),  # address[] - 2
             convert(512, uint256),  # uint256[] - 3
-            convert(1, uint256),  # uint256 - 4
+            _chain_id,  # uint256 - 4
             convert(1, uint256),  # number of address elements - 5
             self,  # 6
             convert(1, uint256),  # number of bytes elements - 7
