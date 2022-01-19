@@ -226,6 +226,8 @@ def set_mirrored(_gauge: address, _mirrored: bool):
     if _mirrored:
         gauge_data += 2  # set is_mirrored = True
 
+    self.gauge_data[_gauge] = gauge_data
+
 
 @external
 def commit_transfer_ownership(_future_owner: address):
