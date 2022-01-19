@@ -6,7 +6,7 @@
 """
 
 
-interface RootLiquidityGauge:
+interface RootGauge:
     def initialize(_bridger: address, _chain_id: uint256): nonpayable
     def transmit_emissions(): nonpayable
 
@@ -80,7 +80,7 @@ def _deploy_gauge(
     self.get_gauge_count[_chain_id] = idx + 1
     self.is_valid_gauge[gauge] = True
 
-    RootLiquidityGauge(gauge).initialize(bridger, _chain_id)
+    RootGauge(gauge).initialize(bridger, _chain_id)
 
     log DeployedGauge(implementation, _chain_id, _msg_sender, _salt, gauge)
     return gauge
@@ -94,7 +94,7 @@ def transmit_emissions(_gauge: address):
         The way that gauges work, this can also be called on the root
         chain without a request.
     """
-    RootLiquidityGauge(_gauge).transmit_emissions()
+    RootGauge(_gauge).transmit_emissions()
 
 
 @payable

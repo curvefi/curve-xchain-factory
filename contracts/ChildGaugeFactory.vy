@@ -6,7 +6,7 @@
 """
 
 
-interface ChildLiquidityGauge:
+interface ChildGauge:
     def initialize(_lp_token: address, _manager: address): nonpayable
     def integrate_fraction(_user: address) -> uint256: view
     def user_checkpoint(_user: address) -> bool: nonpayable
@@ -111,8 +111,8 @@ def _psuedo_mint(_gauge: address, _user: address):
         # update last request time
         self.gauge_data[_gauge] = shift(block.timestamp, 2) + 3
 
-    assert ChildLiquidityGauge(_gauge).user_checkpoint(_user)
-    total_mint: uint256 = ChildLiquidityGauge(_gauge).integrate_fraction(_user)
+    assert ChildGauge(_gauge).user_checkpoint(_user)
+    total_mint: uint256 = ChildGauge(_gauge).integrate_fraction(_user)
     to_mint: uint256 = total_mint - self.minted[_user][_gauge]
 
     if to_mint != 0:
@@ -181,7 +181,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     self.get_gauge_from_lp_token[_lp_token] = gauge
 
 
-    ChildLiquidityGauge(gauge).initialize(_lp_token, _manager)
+    ChildGauge(gauge).initialize(_lp_token, _manager)
 
     log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
     return gauge
