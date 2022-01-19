@@ -19,25 +19,13 @@ def anycall(alice, AnyCallProxy):
 
 
 @pytest.fixture(scope="session")
-def child_gauge_factory(alice, anycall, ChildLiquidityGaugeFactory):
-    return ChildLiquidityGaugeFactory.deploy(alice, {"from": alice})
-
-
-@pytest.fixture(scope="session")
 def child_crv_token(alice):
     return ERC20("Child Curve DAO Token", "cCRV", 18, deployer=alice)
 
 
 @pytest.fixture(scope="session")
-def child_minter(alice, anycall, child_gauge_factory, child_crv_token, Minter):
-    return Minter.deploy(anycall, child_crv_token, child_gauge_factory, {"from": alice})
-
-
-@pytest.fixture(scope="module")
-def child_manager(alice, anycall, child_gauge_factory, child_minter, ChildManager):
-    manager = ChildManager.deploy(anycall, child_gauge_factory, child_minter, {"from": alice})
-    child_minter.set_manager(manager, {"from": alice})
-    return manager
+def child_gauge_factory(alice, anycall, child_crv_token, ChildGaugeFactory):
+    return ChildGaugeFactory.deploy(anycall, child_crv_token, alice, {"from": alice})
 
 
 @pytest.fixture(scope="session")
@@ -51,18 +39,16 @@ def reward_token(alice):
 
 
 @pytest.fixture(scope="module")
-def child_gauge_impl(
-    alice, child_crv_token, child_minter, ChildLiquidityGauge, child_gauge_factory
-):
-    impl = ChildLiquidityGauge.deploy(child_crv_token, child_minter, {"from": alice})
+def child_gauge_impl(alice, child_crv_token, ChildGauge, child_gauge_factory):
+    impl = ChildGauge.deploy(child_crv_token, child_gauge_factory, {"from": alice})
     child_gauge_factory.set_implementation(impl, {"from": alice})
     return impl
 
 
 @pytest.fixture(scope="module")
-def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildLiquidityGauge):
+def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildGauge):
     gauge_addr = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice}).return_value
-    return Contract.from_abi("Child Gauge", gauge_addr, ChildLiquidityGauge.abi)
+    return Contract.from_abi("Child Gauge", gauge_addr, ChildGauge.abi)
 
 
 # ROOT CHAIN DAO
@@ -104,13 +90,8 @@ def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
 
 
 @pytest.fixture(scope="session")
-def root_gauge_factory(alice, RootLiquidityGaugeFactory):
-    return RootLiquidityGaugeFactory.deploy(alice, {"from": alice})
-
-
-@pytest.fixture(scope="session")
-def root_manager(alice, anycall, root_gauge_factory, root_voting_escrow, RootManager):
-    return RootManager.deploy(anycall, root_gauge_factory, root_voting_escrow, {"from": alice})
+def root_gauge_factory(alice, anycall, RootGaugeFactory):
+    return RootGaugeFactory.deploy(anycall, alice, {"from": alice})
 
 
 @pytest.fixture(scope="module")
@@ -128,16 +109,14 @@ def root_gauge_impl(
     root_crv_token,
     root_gauge_factory,
     mock_bridger,
-    RootLiquidityGauge,
+    RootGauge,
 ):
-    impl = RootLiquidityGauge.deploy(
-        root_crv_token, root_gauge_controller, root_minter, {"from": alice}
-    )
+    impl = RootGauge.deploy(root_crv_token, root_gauge_controller, root_minter, {"from": alice})
     root_gauge_factory.set_implementation(impl, {"from": alice})
     return impl
 
 
 @pytest.fixture(scope="module")
-def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootLiquidityGauge):
+def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootGauge):
     gauge_addr = root_gauge_factory.deploy_gauge(chain.id, 0x0, {"from": alice}).return_value
-    return Contract.from_abi("Root Gauge", gauge_addr, RootLiquidityGauge.abi)
+    return Contract.from_abi("Root Gauge", gauge_addr, RootGauge.abi)

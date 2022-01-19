@@ -196,7 +196,7 @@ contract AnyCallProxy is Billable {
         uint256[] memory nonces,
         uint256 toChainID
     ) external onlyWhitelisted(msg.sender, toChainID, to) {
-        require(toChainID != block.chainid, "AnyCall: FORBID");
+        // require(toChainID != block.chainid, "AnyCall: FORBID");
         require(!isBlacklisted[msg.sender]);
         emit LogAnyCall(msg.sender, to, data, callbacks, nonces, block.chainid, toChainID);
     }

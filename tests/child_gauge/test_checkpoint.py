@@ -9,7 +9,7 @@ def setup(alice, child_gauge, lp_token):
     lp_token._mint_for_testing(alice, 10 ** 21, {"from": alice})
 
 
-def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, child_minter):
+def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, child_gauge_factory):
     chain.mine(timestamp=(chain.time() // WEEK) * WEEK + WEEK + 86400)
     child_gauge.deposit(10 ** 21, {"from": alice})
 
@@ -27,12 +27,14 @@ def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, ch
 
     # check balance is forwarded to minter
     assert child_crv_token.balanceOf(child_gauge) == 0
-    assert child_crv_token.balanceOf(child_minter) == 10 ** 24
+    assert child_crv_token.balanceOf(child_gauge_factory) == 10 ** 24
 
     assert child_gauge.integrate_inv_supply(child_gauge.period()) == 0
 
 
-def test_multiple_emissions_deposits(alice, chain, child_gauge, child_crv_token, child_minter):
+def test_multiple_emissions_deposits(
+    alice, chain, child_gauge, child_crv_token, child_gauge_factory
+):
     # day into the week
     chain.mine(timestamp=(chain.time() // WEEK) * WEEK + WEEK + 86400)
     child_gauge.deposit(10 ** 21, {"from": alice})
