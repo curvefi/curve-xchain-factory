@@ -51,6 +51,11 @@ def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildGau
     return Contract.from_abi("Child Gauge", gauge_addr, ChildGauge.abi)
 
 
+@pytest.fixture(scope="module")
+def child_oracle(alice, anycall, ChildOracle):
+    return ChildOracle.deploy(anycall, {"from": alice})
+
+
 # ROOT CHAIN DAO
 
 
@@ -120,3 +125,8 @@ def root_gauge_impl(
 def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootGauge):
     gauge_addr = root_gauge_factory.deploy_gauge(chain.id, 0x0, {"from": alice}).return_value
     return Contract.from_abi("Root Gauge", gauge_addr, RootGauge.abi)
+
+
+@pytest.fixture(scope="module")
+def root_oracle(alice, anycall, root_gauge_factory, root_voting_escrow, RootOracle):
+    return RootOracle.deploy(root_gauge_factory, root_voting_escrow, anycall, {"from": alice})
