@@ -32,7 +32,7 @@ def test_inflation_rate_increases(alice, chain, child_gauge, child_crv_token, ch
 
 def test_request_only_once_a_week(alice, child_gauge, child_gauge_factory):
     child_gauge_factory.set_mirrored(child_gauge, True, {"from": alice})
-    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+    sig = "anyCall(address,bytes,address,uint256)"
     tx = child_gauge_factory.mint(child_gauge, {"from": alice})
     assert sig in {s.get("function") for s in tx.subcalls}
 
@@ -41,7 +41,7 @@ def test_request_only_once_a_week(alice, child_gauge, child_gauge_factory):
 
 
 def test_request_only_if_has_counterpart(alice, child_gauge, child_gauge_factory):
-    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+    sig = "anyCall(address,bytes,address,uint256)"
 
     tx = child_gauge_factory.mint(child_gauge, {"from": alice})
     assert sig not in {s.get("function") for s in tx.subcalls}

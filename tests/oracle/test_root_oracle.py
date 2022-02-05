@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import ETH_ADDRESS
+from brownie import ETH_ADDRESS, ZERO_ADDRESS
 from brownie.convert.datatypes import HexString
 
 
@@ -18,7 +18,7 @@ def test_push(alice, chain, root_oracle, root_voting_escrow, child_oracle, anyca
 
     subcall = tx.subcalls[-1]
 
-    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+    sig = "anyCall(address,bytes,address,uint256)"
 
     user_point = root_voting_escrow.user_point_history(
         alice, root_voting_escrow.user_point_epoch(alice)
@@ -27,13 +27,12 @@ def test_push(alice, chain, root_oracle, root_voting_escrow, child_oracle, anyca
 
     assert subcall["function"] == sig
     assert subcall["inputs"] == {
-        "callbacks": [],
-        "data": [
-            HexString(child_oracle.receive.encode_input(user_point, global_point, alice), "bytes")
-        ],
-        "nonces": [],
-        "to": [root_oracle.address],
-        "toChainID": chain.id,
+        "_fallback": ZERO_ADDRESS,
+        "_data": HexString(
+            child_oracle.receive.encode_input(user_point, global_point, alice), "bytes"
+        ),
+        "_to": root_oracle.address,
+        "_toChainID": chain.id,
     }
 
 

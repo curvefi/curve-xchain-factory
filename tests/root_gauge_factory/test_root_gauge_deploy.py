@@ -1,5 +1,5 @@
 import brownie
-from brownie import ETH_ADDRESS, compile_source
+from brownie import ETH_ADDRESS, ZERO_ADDRESS, compile_source
 from brownie.convert.datatypes import HexString
 from eth_abi import abi
 
@@ -58,17 +58,14 @@ def test_deploy_gauge(alice, chain, root_gauge_factory, child_gauge_factory, moc
 
     subcall = tx.subcalls[-1]
 
-    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+    sig = "anyCall(address,bytes,address,uint256)"
 
     assert subcall["function"] == sig
     assert subcall["inputs"] == {
-        "callbacks": [],
-        "data": [
-            HexString(
-                child_gauge_factory.deploy_gauge.encode_input(ETH_ADDRESS, 0x0, alice), "bytes"
-            )
-        ],
-        "nonces": [],
-        "to": [root_gauge_factory.address],
-        "toChainID": chain.id,
+        "_fallback": ZERO_ADDRESS,
+        "_data": HexString(
+            child_gauge_factory.deploy_gauge.encode_input(ETH_ADDRESS, 0x0, alice), "bytes"
+        ),
+        "_to": root_gauge_factory.address,
+        "_toChainID": chain.id,
     }
