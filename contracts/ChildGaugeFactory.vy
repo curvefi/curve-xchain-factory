@@ -37,14 +37,10 @@ event TransferOwnership:
     _new_owner: address
 
 
-struct ByteArray:
-    offset: uint256
-    length: uint256
-    data: uint256[2]
-
-
 # uint256(method_id("transmit_emissions(address)", output_type=bytes32)) << 224
 SELECTOR: constant(uint256) = 8028065356917769638552618317072897550801200731460208786748395414364255944704
+# uint256(method_id("deploy_gauge(uint256,bytes32)", output_type=bytes32)) << 224
+DEPLOY_GAUGE_SELECTOR: constant(uint256) = 101788216200932537375414814801159281802993345172636369673355283355065034735616
 WEEK: constant(uint256) = 86400 * 7
 
 
@@ -166,7 +162,33 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     gauge_data: uint256 = 1  # set is_valid_gauge = True
     if msg.sender == CALL_PROXY:
+        # issue a call to the root chain to deploy a gauge
         gauge_data += 2  # set mirrored = True
+        data: uint256[3] = [
+            DEPLOY_GAUGE_SELECTOR + shift(chain.id, -32),
+            shift(chain.id, 224) + shift(convert(_salt, uint256), -32),
+            shift(convert(_salt, uint256), 224)
+        ]
+        # send cross chain call to deploy gauge
+        raw_call(
+            CALL_PROXY,
+            _abi_encode(
+                convert(160, uint256),  # address[] - 0
+                convert(224, uint256),  # bytes[] - 1
+                convert(416, uint256),  # address[] - 2
+                convert(448, uint256),  # uint256[] - 3
+                convert(1, uint256),  # uint256 - 4
+                convert(1, uint256),  # number of address elements - 5
+                self,  # 6
+                convert(1, uint256),  # number of bytes elements - 7
+                convert(32, uint256),  # bytes start pos - 8
+                convert(68, uint256),  # length in bytes - 9
+                data,  # bytes right padded - 10/11/12
+                convert(0, uint256),  # number of address elements - 13
+                convert(0, uint256),  # number of uint256 elements - 14
+                method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
+            )
+        )
 
     implementation: address = self.get_implementation
     gauge: address = create_forwarder_to(
@@ -179,7 +201,6 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     self.get_gauge[idx] = gauge
     self.get_gauge_count = idx + 1
     self.get_gauge_from_lp_token[_lp_token] = gauge
-
 
     ChildGauge(gauge).initialize(_lp_token, _manager)
 

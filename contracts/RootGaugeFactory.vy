@@ -116,7 +116,7 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
             convert(160, uint256),  # address[] - 0
             convert(224, uint256),  # bytes[] - 1
             convert(448, uint256),  # address[] - 2
-            convert(512, uint256),  # uint256[] - 3
+            convert(480, uint256),  # uint256[] - 3
             _chain_id,  # uint256 - 4
             convert(1, uint256),  # number of address elements - 5
             self,  # 6
@@ -124,10 +124,8 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
             convert(32, uint256),  # bytes start pos - 8
             convert(100, uint256),  # length in bytes - 9
             data,  # bytes right padded - 10/11/12/13
-            convert(1, uint256),  # number of address elements - 14
-            convert(self, uint256),  # 15
-            convert(1, uint256),  # number of uint256 elements - 16
-            convert(0, uint256),
+            convert(0, uint256),  # number of address elements - 14
+            convert(0, uint256),  # number of uint256 elements - 15
             method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
         )
     )
