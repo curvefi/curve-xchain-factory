@@ -7,12 +7,7 @@ from brownie_tokens import ERC20
 
 @pytest.fixture(scope="module")
 def anycall(alice, AnyCallProxy):
-    instance = AnyCallProxy.deploy(alice, {"from": alice})
-    # disable whitelist for simplicity
-    # live deployment requires each `to` address to be
-    # whitelisted on both ends (root/child chain)
-    instance.disableWhitelist({"from": alice})
-    return instance
+    return AnyCallProxy.deploy(alice, 0, {"from": alice})
 
 
 # CHILD CHAIN DEPLOYMENTS
@@ -25,7 +20,9 @@ def child_crv_token(alice):
 
 @pytest.fixture(scope="module")
 def child_gauge_factory(alice, anycall, child_crv_token, ChildGaugeFactory):
-    return ChildGaugeFactory.deploy(anycall, child_crv_token, alice, {"from": alice})
+    factory = ChildGaugeFactory.deploy(anycall, child_crv_token, alice, {"from": alice})
+    anycall.setWhitelist(factory, factory, 1, True, {"from": alice})
+    return factory
 
 
 @pytest.fixture(scope="module")
@@ -95,8 +92,10 @@ def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
 
 
 @pytest.fixture(scope="module")
-def root_gauge_factory(alice, anycall, RootGaugeFactory):
-    return RootGaugeFactory.deploy(anycall, alice, {"from": alice})
+def root_gauge_factory(alice, anycall, chain, RootGaugeFactory):
+    factory = RootGaugeFactory.deploy(anycall, alice, {"from": alice})
+    anycall.setWhitelist(factory, factory, chain.id, True, {"from": alice})
+    return factory
 
 
 @pytest.fixture(scope="module")
@@ -128,5 +127,7 @@ def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootGauge):
 
 
 @pytest.fixture(scope="module")
-def root_oracle(alice, anycall, root_gauge_factory, root_voting_escrow, RootOracle):
-    return RootOracle.deploy(root_gauge_factory, root_voting_escrow, anycall, {"from": alice})
+def root_oracle(alice, anycall, chain, root_gauge_factory, root_voting_escrow, RootOracle):
+    oracle = RootOracle.deploy(root_gauge_factory, root_voting_escrow, anycall, {"from": alice})
+    anycall.setWhitelist(oracle, oracle, chain.id, True, {"from": alice})
+    return oracle
