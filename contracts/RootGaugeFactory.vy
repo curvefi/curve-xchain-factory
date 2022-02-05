@@ -58,34 +58,6 @@ def __init__(_call_proxy: address, _owner: address):
     log TransferOwnership(ZERO_ADDRESS, _owner)
 
 
-@internal
-def _deploy_gauge(
-    _chain_id: uint256, _salt: bytes32, _msg_sender: address, _msg_value: uint256
-) -> address:
-    """
-    @dev Internal method for deploying gauges
-    """
-    bridger: address = self.get_bridger[_chain_id]
-    assert bridger != ZERO_ADDRESS  # dev: chain id not supported
-
-    implementation: address = self.get_implementation
-    gauge: address = create_forwarder_to(
-        implementation,
-        value=_msg_value,
-        salt=keccak256(_abi_encode(_chain_id, _msg_sender, _salt))
-    )
-
-    idx: uint256 = self.get_gauge_count[_chain_id]
-    self.get_gauge[_chain_id][idx] = gauge
-    self.get_gauge_count[_chain_id] = idx + 1
-    self.is_valid_gauge[gauge] = True
-
-    RootGauge(gauge).initialize(bridger, _chain_id)
-
-    log DeployedGauge(implementation, _chain_id, _msg_sender, _salt, gauge)
-    return gauge
-
-
 @external
 def transmit_emissions(_gauge: address):
     """
@@ -108,7 +80,22 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> address:
     bridger: address = self.get_bridger[_chain_id]
     assert bridger != ZERO_ADDRESS  # dev: chain id not supported
 
-    return self._deploy_gauge(_chain_id, _salt, msg.sender, msg.value)
+    implementation: address = self.get_implementation
+    gauge: address = create_forwarder_to(
+        implementation,
+        value=msg.value,
+        salt=keccak256(_abi_encode(_chain_id, msg.sender, _salt))
+    )
+
+    idx: uint256 = self.get_gauge_count[_chain_id]
+    self.get_gauge[_chain_id][idx] = gauge
+    self.get_gauge_count[_chain_id] = idx + 1
+    self.is_valid_gauge[gauge] = True
+
+    RootGauge(gauge).initialize(bridger, _chain_id)
+
+    log DeployedGauge(implementation, _chain_id, msg.sender, _salt, gauge)
+    return gauge
 
 
 @external
@@ -144,30 +131,6 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
             method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
         )
     )
-
-
-@external
-def callback(
-    _to: address,
-    _data: Bytes[128],
-    _nonces: uint256,
-    _from_chain_id: uint256,
-    _success: bool,
-    _result: Bytes[32],
-):
-    """
-    @notice Deploy a gauge automatically after successfully performing a cross chain call
-    @param _to The target of the cross chain call performed via AnyswapV4CallProxy#anyCall
-    @param _data The calldata supplied to perform a cross chain call
-    @param _nonces The position of the callback in the list of callbacks
-    @param _from_chain_id The chain id of the target cross chain call
-    @param _success Whether call was successful
-    @param _result The return data from the cross chain call
-    """
-    assert _to == self  # dev: invalid target
-    assert slice(_data, 0, 4) == method_id("deploy_gauge(address,bytes32,address)")  # dev: invalid method
-    assert _success  # dev: operation unsuccessful
-    assert self._deploy_gauge(_from_chain_id, extract32(_data, 36), msg.sender, 0) == extract32(_result, 0, output_type=address)
 
 
 @external
