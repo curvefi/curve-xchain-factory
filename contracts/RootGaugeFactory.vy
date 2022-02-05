@@ -10,6 +10,11 @@ interface RootGauge:
     def initialize(_bridger: address, _chain_id: uint256): nonpayable
     def transmit_emissions(): nonpayable
 
+interface CallProxy:
+    def anyCall(
+        _to: address, _data: Bytes[1024], _fallback: address, _to_chain_id: uint256
+    ): nonpayable
+
 
 event BridgerUpdated:
     _chain_id: indexed(uint256)
@@ -30,10 +35,6 @@ event TransferOwnership:
 event UpdateImplementation:
     _old_implementation: address
     _new_implementation: address
-
-
-# uint256(method_id("deploy_gauge(address,bytes32,address)")) << 224
-SELECTOR: constant(uint256) = 48798775599586094198436648465279427627576197647095158190250627906034179506176
 
 
 CALL_PROXY: immutable(address)
@@ -103,31 +104,16 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
     bridger: address = self.get_bridger[_chain_id]
     assert bridger != ZERO_ADDRESS  # dev: chain id not supported
 
-    data: uint256[4] = [
-        SELECTOR + shift(convert(_lp_token, uint256), -32),
-        shift(convert(_lp_token, uint256), 224) + shift(convert(_salt, uint256), -32),
-        shift(convert(_salt, uint256), 224) + shift(convert(_manager, uint256), -32),
-        shift(convert(_manager, uint256), 224)
-    ]
-
-    raw_call(
-        CALL_PROXY,
+    CallProxy(CALL_PROXY).anyCall(
+        self,
         _abi_encode(
-            convert(160, uint256),  # address[] - 0
-            convert(224, uint256),  # bytes[] - 1
-            convert(448, uint256),  # address[] - 2
-            convert(480, uint256),  # uint256[] - 3
-            _chain_id,  # uint256 - 4
-            convert(1, uint256),  # number of address elements - 5
-            self,  # 6
-            convert(1, uint256),  # number of bytes elements - 7
-            convert(32, uint256),  # bytes start pos - 8
-            convert(100, uint256),  # length in bytes - 9
-            data,  # bytes right padded - 10/11/12/13
-            convert(0, uint256),  # number of address elements - 14
-            convert(0, uint256),  # number of uint256 elements - 15
-            method_id=method_id("anyCall(address[],bytes[],address[],uint256[],uint256)"),
-        )
+            _lp_token,
+            _salt,
+            _manager,
+            method_id=method_id("deploy_gauge(address,bytes32,address)")
+        ),
+        ZERO_ADDRESS,
+        _chain_id
     )
 
 
