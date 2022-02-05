@@ -14,17 +14,6 @@ def curve_dao(pm):
     return pm("curvefi/curve-dao-contracts@1.3.0")
 
 
-@pytest.fixture(scope="module", autouse=True)
-def mod_isolation(chain):
-    chain.snapshot()
-    yield
-    chain.revert()
-
-
 @pytest.fixture(autouse=True)
-def isolation(chain, history):
-    start = len(history)
-    yield
-    end = len(history)
-    if end - start > 0:
-        chain.undo(end - start)
+def isolation(module_isolation, fn_isolation):
+    pass

@@ -36,6 +36,30 @@ def test_deploy_child_gauge(
     ]
 
 
+def test_deploy_child_gauge_anycall(
+    anycall,
+    chain,
+    child_gauge_factory,
+    root_gauge_factory,
+    lp_token,
+):
+    tx = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": anycall})
+
+    assert "LogAnyCall" in tx.events
+    subcall = tx.subcalls[0]
+
+    sig = "anyCall(address[],bytes[],address[],uint256[],uint256)"
+
+    assert subcall["function"] == sig
+    assert subcall["inputs"] == {
+        "callbacks": [],
+        "data": [HexString(root_gauge_factory.deploy_gauge.encode_input(chain.id, 0x0), "bytes")],
+        "nonces": [],
+        "to": [child_gauge_factory.address],
+        "toChainID": 1,
+    }
+
+
 def test_deploy_child_gauge_repeat_lp_token(alice, bob, child_gauge_factory, lp_token):
     child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice})
 

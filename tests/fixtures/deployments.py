@@ -5,7 +5,7 @@ from brownie_tokens import ERC20
 # ANYCALL DEPLOYMENT
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def anycall(alice, AnyCallProxy):
     instance = AnyCallProxy.deploy(alice, {"from": alice})
     # disable whitelist for simplicity
@@ -18,22 +18,22 @@ def anycall(alice, AnyCallProxy):
 # CHILD CHAIN DEPLOYMENTS
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def child_crv_token(alice):
     return ERC20("Child Curve DAO Token", "cCRV", 18, deployer=alice)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def child_gauge_factory(alice, anycall, child_crv_token, ChildGaugeFactory):
     return ChildGaugeFactory.deploy(anycall, child_crv_token, alice, {"from": alice})
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def lp_token(alice):
     return ERC20("Dummy LP Token", "dLP", 18, deployer=alice)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def reward_token(alice):
     return ERC20("Dummy Reward Token", "dRT", 18, deployer=alice)
 
@@ -59,12 +59,12 @@ def child_oracle(alice, anycall, ChildOracle):
 # ROOT CHAIN DAO
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def curve_dao(pm):
     return pm("curvefi/curve-dao-contracts@1.3.0")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def root_crv_token(alice, chain, curve_dao):
     crv = curve_dao.ERC20CRV.deploy("Root Curve DAO Token", "rCRV", 18, {"from": alice})
     chain.sleep(86400 * 14)
@@ -72,19 +72,19 @@ def root_crv_token(alice, chain, curve_dao):
     return crv
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def root_voting_escrow(alice, root_crv_token, curve_dao):
     return curve_dao.VotingEscrow.deploy(
         root_crv_token, "Dummy VECRV", "veCRV", "v1", {"from": alice}
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def root_gauge_controller(alice, root_crv_token, root_voting_escrow, curve_dao):
     return curve_dao.GaugeController.deploy(root_crv_token, root_voting_escrow, {"from": alice})
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
     minter = curve_dao.Minter.deploy(root_crv_token, root_gauge_controller, {"from": alice})
     root_crv_token.set_minter(minter, {"from": alice})
@@ -94,7 +94,7 @@ def root_minter(alice, root_crv_token, root_gauge_controller, curve_dao):
 # ROOT CHAIN DEPLOYMENTS
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def root_gauge_factory(alice, anycall, RootGaugeFactory):
     return RootGaugeFactory.deploy(anycall, alice, {"from": alice})
 
