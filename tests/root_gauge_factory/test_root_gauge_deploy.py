@@ -62,13 +62,13 @@ def test_deploy_gauge(alice, chain, root_gauge_factory, child_gauge_factory, moc
 
     assert subcall["function"] == sig
     assert subcall["inputs"] == {
-        "callbacks": [root_gauge_factory.address],
+        "callbacks": [],
         "data": [
             HexString(
                 child_gauge_factory.deploy_gauge.encode_input(ETH_ADDRESS, 0x0, alice), "bytes"
             )
         ],
-        "nonces": [0],
+        "nonces": [],
         "to": [root_gauge_factory.address],
         "toChainID": chain.id,
     }
