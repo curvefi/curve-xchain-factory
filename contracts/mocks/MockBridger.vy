@@ -10,3 +10,8 @@ def cost() -> uint256:
 @external
 def bridge(_token: address, _to: address, _amount: uint256):
     pass
+
+
+@external
+def check(_account: address) -> bool:
+    return _account == tx.origin
