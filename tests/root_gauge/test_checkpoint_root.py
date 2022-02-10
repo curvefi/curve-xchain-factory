@@ -1,5 +1,6 @@
 import math
 
+import brownie
 import pytest
 from brownie import chain
 
@@ -62,8 +63,20 @@ def test_transmit(alice, root_gauge, root_gauge_controller, mock_bridger, root_c
 
     chain.mine(timedelta=3 * WEEK)
 
-    tx = root_gauge.transmit_emissions({"from": alice})
+    tx = root_gauge.transmit_emissions({"from": root_gauge.factory()})
     assert tx.subcalls[-1]["function"] == "bridge(address,address,uint256)"
     assert tx.subcalls[-1]["to"] == mock_bridger
     assert tx.subcalls[-1]["inputs"]["_to"] == root_gauge
     assert tx.subcalls[-1]["inputs"]["_token"] == root_crv_token
+
+
+def test_transmit_directly_fails(
+    alice, root_gauge, root_gauge_controller, mock_bridger, root_crv_token
+):
+    root_gauge_controller.add_type("Test", 10 ** 18, {"from": alice})
+    root_gauge_controller.add_gauge(root_gauge, 0, 10 ** 18, {"from": alice})
+
+    chain.mine(timedelta=3 * WEEK)
+
+    with brownie.reverts():
+        root_gauge.transmit_emissions({"from": alice})
