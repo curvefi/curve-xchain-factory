@@ -46,11 +46,21 @@ def test_transmit_emissions(alice, root_gauge_factory):
 @external
 def transmit_emissions():
     pass
+
+@view
+@external
+def bridger() -> address:
+    return self
+
+@view
+@external
+def check(_addr: address) -> bool:
+    return True
     """
     mock = compile_source(src, vyper_version="0.3.1").Vyper.deploy({"from": alice})
     tx = root_gauge_factory.transmit_emissions(mock, {"from": alice})
 
-    assert tx.subcalls[0]["function"] == "transmit_emissions()"
+    assert tx.subcalls[2]["function"] == "transmit_emissions()"
 
 
 def test_deploy_gauge(alice, chain, root_gauge_factory, child_gauge_factory, mock_bridger):
