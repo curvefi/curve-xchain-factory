@@ -36,13 +36,16 @@ event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
+event UpdateCallProxy:
+    _old_call_proxy: address
+    _new_call_proxy: address
+
 event UpdateImplementation:
     _old_implementation: address
     _new_implementation: address
 
 
-CALL_PROXY: immutable(address)
-
+call_proxy: public(address)
 
 get_bridger: public(HashMap[uint256, address])
 get_implementation: public(address)
@@ -57,7 +60,8 @@ future_owner: public(address)
 
 @external
 def __init__(_call_proxy: address, _owner: address):
-    CALL_PROXY = _call_proxy
+    self.call_proxy = _call_proxy
+    log UpdateCallProxy(ZERO_ADDRESS, _call_proxy)
 
     self.owner = _owner
     log TransferOwnership(ZERO_ADDRESS, _owner)
@@ -73,7 +77,7 @@ def transmit_emissions(_gauge: address):
     """
     # in most cases this will return True
     # for special bridges *cough cough Multichain, we can only do
-    # one bridge per tx, therefore this will verify msg.sender in [tx.origin, CALL_PROXY]
+    # one bridge per tx, therefore this will verify msg.sender in [tx.origin, self.call_proxy]
     assert Bridger(RootGauge(_gauge).bridger()).check(msg.sender)
     RootGauge(_gauge).transmit_emissions()
 
@@ -112,7 +116,7 @@ def deploy_child_gauge(_chain_id: uint256, _lp_token: address, _salt: bytes32, _
     bridger: address = self.get_bridger[_chain_id]
     assert bridger != ZERO_ADDRESS  # dev: chain id not supported
 
-    CallProxy(CALL_PROXY).anyCall(
+    CallProxy(self.call_proxy).anyCall(
         self,
         _abi_encode(
             _lp_token,
@@ -148,6 +152,19 @@ def set_implementation(_implementation: address):
 
     log UpdateImplementation(self.get_implementation, _implementation)
     self.get_implementation = _implementation
+
+
+@external
+def set_call_proxy(_new_call_proxy: address):
+    """
+    @notice Set the address of the call proxy used
+    @dev _new_call_proxy should adhere to the same interface as defined
+    @param _new_call_proxy Address of the cross chain call proxy
+    """
+    assert msg.sender == self.owner
+
+    log UpdateCallProxy(self.call_proxy, _new_call_proxy)
+    self.call_proxy = _new_call_proxy
 
 
 @external

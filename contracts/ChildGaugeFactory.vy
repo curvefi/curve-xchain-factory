@@ -37,6 +37,10 @@ event UpdateVotingEscrow:
     _old_voting_escrow: address
     _new_voting_escrow: address
 
+event UpdateCallProxy:
+    _old_call_proxy: address
+    _new_call_proxy: address
+
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
@@ -47,7 +51,6 @@ DEPLOY_GAUGE_SELECTOR: constant(uint256) = 1017882162009325373754148148011592818
 WEEK: constant(uint256) = 86400 * 7
 
 
-CALL_PROXY: immutable(address)
 CRV: immutable(address)
 
 
@@ -57,6 +60,7 @@ voting_escrow: public(address)
 owner: public(address)
 future_owner: public(address)
 
+call_proxy: public(address)
 # [last_request][has_counterpart][is_valid_gauge]
 gauge_data: public(HashMap[address, uint256])
 # user -> gauge -> value
@@ -69,8 +73,10 @@ get_gauge: public(address[MAX_INT128])
 
 @external
 def __init__(_call_proxy: address, _crv: address, _owner: address):
-    CALL_PROXY = _call_proxy
     CRV = _crv
+
+    self.call_proxy = _call_proxy
+    log UpdateCallProxy(ZERO_ADDRESS, _call_proxy)
 
     self.owner = _owner
     log TransferOwnership(ZERO_ADDRESS, _owner)
@@ -83,7 +89,7 @@ def _psuedo_mint(_gauge: address, _user: address):
 
     # if is_mirrored and last_request != this week
     if bitwise_and(gauge_data, 2) != 0 and shift(gauge_data, -2) / WEEK != block.timestamp / WEEK:
-        CallProxy(CALL_PROXY).anyCall(
+        CallProxy(self.call_proxy).anyCall(
             self,
             _abi_encode(_gauge, method_id=method_id("transmit_emissions(address)")),
             ZERO_ADDRESS,
@@ -146,10 +152,10 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
         assert msg.sender == self.owner  # dev: only owner
 
     gauge_data: uint256 = 1  # set is_valid_gauge = True
-    if msg.sender == CALL_PROXY:
+    if msg.sender == self.call_proxy:
         gauge_data += 2  # set mirrored = True
         # issue a call to the root chain to deploy a root gauge
-        CallProxy(CALL_PROXY).anyCall(
+        CallProxy(self.call_proxy).anyCall(
             self,
             _abi_encode(chain.id, _salt, method_id=method_id("deploy_gauge(uint256,bytes32)")),
             ZERO_ADDRESS,
@@ -214,6 +220,19 @@ def set_mirrored(_gauge: address, _mirrored: bool):
         gauge_data += 2  # set is_mirrored = True
 
     self.gauge_data[_gauge] = gauge_data
+
+
+@external
+def set_call_proxy(_new_call_proxy: address):
+    """
+    @notice Set the address of the call proxy used
+    @dev _new_call_proxy should adhere to the same interface as defined
+    @param _new_call_proxy Address of the cross chain call proxy
+    """
+    assert msg.sender == self.owner
+
+    log UpdateCallProxy(self.call_proxy, _new_call_proxy)
+    self.call_proxy = _new_call_proxy
 
 
 @external
