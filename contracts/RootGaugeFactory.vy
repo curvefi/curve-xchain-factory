@@ -6,7 +6,11 @@
 """
 
 
+interface Bridger:
+    def check(_addr: address) -> bool: view
+
 interface RootGauge:
+    def bridger() -> address: view
     def initialize(_bridger: address, _chain_id: uint256): nonpayable
     def transmit_emissions(): nonpayable
 
@@ -67,6 +71,10 @@ def transmit_emissions(_gauge: address):
         The way that gauges work, this can also be called on the root
         chain without a request.
     """
+    # in most cases this will return True
+    # for special bridges *cough cough Multichain, we can only do
+    # one bridge per tx, therefore this will verify msg.sender in [tx.origin, CALL_PROXY]
+    assert Bridger(RootGauge(_gauge).bridger()).check(msg.sender)
     RootGauge(_gauge).transmit_emissions()
 
 
