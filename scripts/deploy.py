@@ -1,4 +1,5 @@
 from brownie import (
+    ZERO_ADDRESS,
     ChildGauge,
     ChildGaugeFactory,
     ChildOracle,
@@ -16,7 +17,7 @@ GAUGE_CONTROLLER = "0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB"
 MINTER = "0xd061D61a4d941c39E5453435B6345Dc261C2fcE0"
 VE = "0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2"
 
-ANYCALL = ""  # should be the same for all chains
+ANYCALL = ZERO_ADDRESS
 
 
 def deploy_root():
