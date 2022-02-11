@@ -88,7 +88,6 @@ def transmit_emissions():
     assert minted != 0  # dev: nothing minted
     bridger: address = self.bridger
 
-    ERC20(CRV).transfer(bridger, minted)
     Bridger(bridger).bridge(CRV, self, minted, value=Bridger(bridger).cost())
 
 
@@ -178,7 +177,11 @@ def update_bridger():
     @notice Update the bridger used by this contract
     @dev Bridger contracts should prevent briding if ever updated
     """
-    self.bridger = Factory(self.factory).get_bridger(self.chain_id)
+    # reset approval
+    bridger: address = Factory(self.factory).get_bridger(self.chain_id)
+    ERC20(CRV).approve(self.bridger, 0)
+    ERC20(CRV).approve(bridger, MAX_UINT256)
+    self.bridger = bridger
 
 
 @external
@@ -200,3 +203,5 @@ def initialize(_bridger: address, _chain_id: uint256):
 
     self.inflation_params = inflation_params
     self.last_period = block.timestamp / WEEK
+
+    ERC20(CRV).approve(_bridger, MAX_UINT256)
