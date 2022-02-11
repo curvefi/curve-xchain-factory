@@ -1,8 +1,8 @@
 black
 eth-brownie
 brownie-token-tester
-flake8
+flake8==3.9.2
 isort
 pip-tools
 pre-commit
--e git+https://github.com/vyperlang/vyper@fecf04c1f0ae70a47cb522d59531447415439b5a#egg=vyper
+trie
