@@ -1,11 +1,13 @@
 # @version 0.3.1
 """
-@notice Curve FTM Bridge Wrapper
+@notice Curve Multichain EOA Bridge Wrapper
 """
 from vyper.interfaces import ERC20
 
 
+# address of anyswap cross chain call proxy
 ANYCALL: immutable(address)
+# EOA bridge address
 ANYSWAP_BRIDGE: immutable(address)
 
 
@@ -38,3 +40,15 @@ def check(_transmit_caller: address) -> bool:
     # therefore the caller of `transmit_emissions` on the factory has to
     # either be tx originator, or anycall
     return _transmit_caller in [tx.origin, ANYCALL]
+
+
+@pure
+@external
+def anycall() -> address:
+    return ANYCALL
+
+
+@pure
+@external
+def anyswap_bridge() -> address:
+    return ANYSWAP_BRIDGE
