@@ -41,13 +41,15 @@ event UpdateCallProxy:
     _old_call_proxy: address
     _new_call_proxy: address
 
+event UpdateMirrored:
+    _gauge: indexed(address)
+    _mirrored: bool
+
 event TransferOwnership:
     _old_owner: address
     _new_owner: address
 
 
-# uint256(method_id("deploy_gauge(uint256,bytes32)", output_type=bytes32)) << 224
-DEPLOY_GAUGE_SELECTOR: constant(uint256) = 101788216200932537375414814801159281802993345172636369673355283355065034735616
 WEEK: constant(uint256) = 86400 * 7
 
 
@@ -152,8 +154,14 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
         assert msg.sender == self.owner  # dev: only owner
 
     gauge_data: uint256 = 1  # set is_valid_gauge = True
+    implementation: address = self.get_implementation
+    gauge: address = create_forwarder_to(
+        implementation, salt=keccak256(_abi_encode(chain.id, msg.sender, _salt))
+    )
+
     if msg.sender == self.call_proxy:
         gauge_data += 2  # set mirrored = True
+        log UpdateMirrored(gauge, True)
         # issue a call to the root chain to deploy a root gauge
         CallProxy(self.call_proxy).anyCall(
             self,
@@ -161,11 +169,6 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
             ZERO_ADDRESS,
             1
         )
-
-    implementation: address = self.get_implementation
-    gauge: address = create_forwarder_to(
-        implementation, salt=keccak256(_abi_encode(chain.id, msg.sender, _salt))
-    )
 
     self.gauge_data[gauge] = gauge_data
 
@@ -220,6 +223,7 @@ def set_mirrored(_gauge: address, _mirrored: bool):
         gauge_data += 2  # set is_mirrored = True
 
     self.gauge_data[_gauge] = gauge_data
+    log UpdateMirrored(_gauge, _mirrored)
 
 
 @external
