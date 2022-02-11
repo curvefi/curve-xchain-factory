@@ -46,7 +46,7 @@ def test_deploy_child_gauge_anycall(
     tx = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": anycall})
 
     assert "AnyCall" in tx.events
-    subcall = tx.subcalls[0]
+    subcall = tx.subcalls[1]
 
     sig = "anyCall(address,bytes,address,uint256)"
 
