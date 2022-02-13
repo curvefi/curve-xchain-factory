@@ -20,6 +20,7 @@ L2_CRV20: constant(address) = 0x0994206dfE8De6Ec6920FF4D779B0d950605Fb53
 OPTIMISM_L1_BRIDGE: constant(address) = 0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1
 
 
+# l1_token -> l2_token
 l2_token: public(HashMap[address, address])
 
 owner: public(address)
@@ -32,16 +33,23 @@ def __init__():
     self.l2_token[CRV20] = L2_CRV20
 
     self.owner = msg.sender
+    log TransferOwnership(ZERO_ADDRESS, msg.sender)
 
 
 @external
 def bridge(_token: address, _to: address, _amount: uint256):
+    """
+    @notice Bridge a token to Optimism mainnet using the L1 Standard Bridge
+    @param _token The token to bridge
+    @param _to The address to deposit the token to on L2
+    @param _amount The amount of the token to deposit
+    """
     assert ERC20(_token).transferFrom(msg.sender, self, _amount)
 
     l2_token: address = L2_CRV20
     if _token != CRV20:
         l2_token = self.l2_token[_token]
-        assert l2_token != ZERO_ADDRESS
+        assert l2_token != ZERO_ADDRESS  # dev: token not mapped
 
     raw_call(
         OPTIMISM_L1_BRIDGE,
@@ -60,18 +68,31 @@ def bridge(_token: address, _to: address, _amount: uint256):
 @view
 @external
 def check(_account: address) -> bool:
+    """
+    @notice Dummy method to check if caller is allowed to bridge
+    @param _account The account to check
+    """
     return True
 
 
 @view
 @external
 def cost() -> uint256:
+    """
+    @notice Cost in ETH to bridge
+    """
     return 0
 
 
 @external
 def set_l2_token(_l1_token: address, _l2_token: address):
+    """
+    @notice Set the mapping of L1 token -> L2 token for depositing
+    @param _l1_token The l1 token address
+    @param _l2_token The l2 token address
+    """
     assert msg.sender == self.owner
+    assert _l1_token != CRV20  # dev: cannot reset mapping for CRV20
 
     amount: uint256 = 0
     if _l2_token != ZERO_ADDRESS:
