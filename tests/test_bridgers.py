@@ -51,3 +51,20 @@ def test_multichain_bridger(alice, crv_token, MultichainBridger):
         "to": crv_token,
         "value": 0,
     }
+
+
+def test_omni_bridger(alice, crv_token, OmniBridger):
+    omni_bridge = "0x88ad09518695c6c3712AC10a214bE5109a655671"
+    bridger = OmniBridger.deploy({"from": alice})
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(omni_bridge)
+    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+
+    assert crv_token.balanceOf(omni_bridge) == balance_before + 10 ** 18
+    assert "TokensBridgingInitiated" in tx.events
+    assert tx.events["TokensBridgingInitiated"]["token"] == crv_token
