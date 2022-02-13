@@ -5,6 +5,10 @@
 from vyper.interfaces import ERC20
 
 
+interface BridgeManager:
+    def depositFor(_user: address, _root_token: address, _deposit_data: Bytes[32]): nonpayable
+
+
 CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 POLYGON_BRIDGE_MANAGER: constant(address) = 0xA0c68C638235ee32657e8f720a23ceC1bFc77C77
 POLYGON_BRIDGE_RECEIVER: constant(address) = 0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf
@@ -34,17 +38,7 @@ def bridge(_token: address, _to: address, _amount: uint256):
         assert ERC20(_token).approve(POLYGON_BRIDGE_RECEIVER, MAX_UINT256)
         self.is_approved[_token] = True
 
-    raw_call(
-        POLYGON_BRIDGE_MANAGER,
-        _abi_encode(
-            _to,
-            _token,
-            convert(96, uint256),
-            convert(32, uint256),
-            _amount,
-            method_id=method_id("depositFor(address,address,bytes)")
-        )
-    )
+    BridgeManager(POLYGON_BRIDGE_MANAGER).depositFor(_to, _token, _abi_encode(_amount))
 
 
 @pure
