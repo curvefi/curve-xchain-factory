@@ -10,18 +10,24 @@ POLYGON_BRIDGE_MANAGER: constant(address) = 0xA0c68C638235ee32657e8f720a23ceC1bF
 POLYGON_BRIDGE_RECEIVER: constant(address) = 0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf
 
 
+# token -> is approval given to bridge
 is_approved: public(HashMap[address, bool])
 
 
 @external
 def __init__():
-    # we already know ahead of time that CRV will be bridged
     assert ERC20(CRV20).approve(POLYGON_BRIDGE_RECEIVER, MAX_UINT256)
     self.is_approved[CRV20] = True
 
 
 @external
 def bridge(_token: address, _to: address, _amount: uint256):
+    """
+    @notice Bridge a token to Polygon mainnet
+    @param _token The token to bridge
+    @param _to The address to deposit the token to on polygon
+    @param _amount The amount of the token to bridge
+    """
     assert ERC20(_token).transferFrom(msg.sender, self, _amount)
 
     if _token != CRV20 and not self.is_approved[_token]:
@@ -44,10 +50,17 @@ def bridge(_token: address, _to: address, _amount: uint256):
 @pure
 @external
 def cost() -> uint256:
+    """
+    @notice Cost in ETH to bridge
+    """
     return 0
 
 
 @pure
 @external
 def check(_account: address) -> bool:
+    """
+    @notice Check if `_account` is allowed to bridge
+    @param _account The account to check
+    """
     return True
