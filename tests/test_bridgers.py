@@ -22,3 +22,32 @@ def test_arbitrum_bridger(alice, crv_token, ArbitrumBridger):
     assert "DepositInitiated" in tx.events
     assert tx.events["DepositInitiated"]["_to"] == alice
     assert tx.events["DepositInitiated"]["_amount"] == 10 ** 18
+
+
+def test_multichain_bridger(alice, crv_token, MultichainBridger):
+    anyswap_bridge = "0xC564EE9f21Ed8A2d8E7e76c085740d5e4c5FaFbE"
+    bridger = MultichainBridger.deploy(
+        "0x37414a8662bc1d25be3ee51fb27c2686e2490a89", anyswap_bridge, {"from": alice}
+    )
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    balance_before = crv_token.balanceOf(anyswap_bridge)
+    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+
+    assert crv_token.balanceOf(anyswap_bridge) == balance_before + 10 ** 18
+    assert len(tx.subcalls) == 1
+    assert tx.subcalls[0] == {
+        "from": bridger,
+        "function": "transferFrom(address,address,uint256)",
+        "inputs": {
+            "_from": alice,
+            "_to": anyswap_bridge,
+            "_value": 10 ** 18,
+        },
+        "op": "CALL",
+        "to": crv_token,
+        "value": 0,
+    }
