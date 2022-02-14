@@ -68,3 +68,32 @@ def test_omni_bridger(alice, crv_token, OmniBridger):
     assert crv_token.balanceOf(omni_bridge) == balance_before + 10 ** 18
     assert "TokensBridgingInitiated" in tx.events
     assert tx.events["TokensBridgingInitiated"]["token"] == crv_token
+
+
+@pytest.mark.xfail
+def test_optimism_bridger(alice, crv_token, OptimismBridger):
+    # oddly in mainnet-fork this test fails due to the bridger contract's CRV balance
+    # not updating properly during the bridge tx, however works in live mainnet env
+    # https://etherscan.io/tx/0xd1a74f4df8c49e7a53c624c1cbec2af9cecf92f0c960488ce173e2cf6205882b/advanced
+    optimism_bridge = "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+    l2_crv = "0x0994206dfE8De6Ec6920FF4D779B0d950605Fb53"
+    bridger = OptimismBridger.deploy({"from": alice})
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(optimism_bridge)
+    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+
+    assert crv_token.balanceOf(optimism_bridge) == balance_before + 10 ** 18
+    assert "ERC20DepositInitiated" in tx.events
+    assert tx.events["TokensBridgingInitiated"].values() == [
+        crv_token,
+        l2_crv,
+        bridger,
+        alice,
+        10 ** 18,
+        b"",
+    ]
