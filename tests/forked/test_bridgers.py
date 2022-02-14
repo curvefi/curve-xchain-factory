@@ -39,7 +39,7 @@ def test_multichain_bridger(alice, crv_token, MultichainBridger):
 
     assert crv_token.balanceOf(anyswap_bridge) == balance_before + 10 ** 18
     assert len(tx.subcalls) == 1
-    assert tx.subcalls[0] == {
+    expected = {
         "from": bridger,
         "function": "transferFrom(address,address,uint256)",
         "inputs": {
@@ -51,6 +51,7 @@ def test_multichain_bridger(alice, crv_token, MultichainBridger):
         "to": crv_token,
         "value": 0,
     }
+    assert {k: v for k, v in tx.subcalls[0].items() if k in expected} == expected
 
 
 def test_omni_bridger(alice, crv_token, OmniBridger):
