@@ -97,3 +97,21 @@ def test_optimism_bridger(alice, crv_token, OptimismBridger):
         10 ** 18,
         b"",
     ]
+
+
+def test_polygon_bridger(alice, crv_token, PolygonBridger):
+    poly_bridge_rec = "0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf"
+    bridger = PolygonBridger.deploy({"from": alice})
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(poly_bridge_rec)
+    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+
+    assert crv_token.balanceOf(poly_bridge_rec) == balance_before + 10 ** 18
+    assert "LockedERC20" in tx.events
+    assert tx.events["LockedERC20"]["rootToken"] == crv_token
+    assert tx.events["LockedERC20"]["amount"] == 10 ** 18
