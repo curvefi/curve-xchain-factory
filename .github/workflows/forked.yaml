@@ -1,4 +1,4 @@
-name: unitary
+name: forked
 
 on: [pull_request, push]
 
@@ -39,4 +39,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Tests
-        run: brownie test -x --ignore=tests/forked/
+        run: brownie test tests/forked/ --network mainnet-fork -x
