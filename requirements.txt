@@ -4,18 +4,24 @@
 #
 #    pip-compile
 #
-aiohttp==3.7.4.post0
+aiohttp==3.8.1
     # via
     #   eth-brownie
     #   web3
-asttokens==2.0.4
-    # via
-    #   eth-brownie
-    #   vyper
-async-timeout==3.0.1
+aiosignal==1.2.0
     # via
     #   aiohttp
     #   eth-brownie
+asttokens==2.0.5
+    # via
+    #   eth-brownie
+    #   vyper
+async-timeout==4.0.1
+    # via
+    #   aiohttp
+    #   eth-brownie
+asynctest==0.13.0
+    # via eth-brownie
 attrs==21.2.0
     # via
     #   aiohttp
@@ -23,9 +29,7 @@ attrs==21.2.0
     #   hypothesis
     #   jsonschema
     #   pytest
-backports.entry-points-selectable==1.1.1
-    # via virtualenv
-base58==2.1.0
+base58==2.1.1
     # via
     #   eth-brownie
     #   multiaddr
@@ -33,24 +37,23 @@ bitarray==1.2.2
     # via
     #   eth-account
     #   eth-brownie
-black==21.9b0
+black==21.11b1
     # via
     #   -r requirements.in
     #   eth-brownie
 brownie-token-tester==0.3.2
     # via -r requirements.in
+cached-property==1.5.2
+    # via eth-brownie
 certifi==2021.10.8
     # via
     #   eth-brownie
     #   requests
 cfgv==3.3.1
     # via pre-commit
-chardet==4.0.0
+charset-normalizer==2.0.9
     # via
     #   aiohttp
-    #   eth-brownie
-charset-normalizer==2.0.7
-    # via
     #   eth-brownie
     #   requests
 click==8.0.3
@@ -58,7 +61,7 @@ click==8.0.3
     #   black
     #   eth-brownie
     #   pip-tools
-cytoolz==0.11.0
+cytoolz==0.11.2
     # via
     #   eth-brownie
     #   eth-keyfile
@@ -67,7 +70,7 @@ dataclassy==0.11.1
     # via
     #   eip712
     #   eth-brownie
-distlib==0.3.3
+distlib==0.3.4
     # via virtualenv
 eip712==0.1.0
     # via eth-brownie
@@ -82,7 +85,7 @@ eth-account==0.5.6
     # via
     #   eth-brownie
     #   web3
-eth-brownie==1.17.1
+eth-brownie==1.17.2
     # via
     #   -r requirements.in
     #   brownie-token-tester
@@ -131,10 +134,15 @@ execnet==1.9.0
     # via
     #   eth-brownie
     #   pytest-xdist
-filelock==3.4.0
+filelock==3.4.2
     # via virtualenv
 flake8==3.9.2
     # via -r requirements.in
+frozenlist==1.2.0
+    # via
+    #   aiohttp
+    #   aiosignal
+    #   eth-brownie
 hexbytes==0.2.2
     # via
     #   eip712
@@ -143,15 +151,17 @@ hexbytes==0.2.2
     #   eth-event
     #   eth-rlp
     #   web3
-hypothesis==6.24.0
+hypothesis==6.27.3
     # via eth-brownie
-identify==2.4.0
+identify==2.4.9
     # via pre-commit
 idna==3.3
     # via
     #   eth-brownie
     #   requests
     #   yarl
+importlib-metadata==4.8.2
+    # via eth-brownie
 inflection==0.5.0
     # via
     #   eth-brownie
@@ -203,7 +213,7 @@ netaddr==0.8.0
     #   multiaddr
 nodeenv==1.6.0
     # via pre-commit
-packaging==21.0
+packaging==21.3
     # via
     #   eth-brownie
     #   pytest
@@ -217,7 +227,7 @@ pathspec==0.9.0
     #   eth-brownie
 pep517==0.12.0
     # via pip-tools
-pip-tools==6.4.0
+pip-tools==6.5.1
     # via -r requirements.in
 platformdirs==2.4.0
     # via
@@ -228,17 +238,17 @@ pluggy==1.0.0
     # via
     #   eth-brownie
     #   pytest
-pre-commit==2.15.0
+pre-commit==2.17.0
     # via -r requirements.in
-prompt-toolkit==3.0.21
+prompt-toolkit==3.0.23
     # via eth-brownie
-protobuf==3.19.0
+protobuf==3.19.1
     # via
     #   eth-brownie
     #   web3
 psutil==5.8.0
     # via eth-brownie
-py==1.10.0
+py==1.11.0
     # via
     #   eth-brownie
     #   pytest
@@ -249,7 +259,7 @@ py-solc-x==1.1.1
     # via eth-brownie
 pycodestyle==2.7.0
     # via flake8
-pycryptodome==3.11.0
+pycryptodome==3.12.0
     # via
     #   eip712
     #   eth-brownie
@@ -268,7 +278,7 @@ pyjwt==1.7.1
     # via
     #   eth-brownie
     #   pythx
-pyparsing==3.0.3
+pyparsing==3.0.6
     # via
     #   eth-brownie
     #   packaging
@@ -300,7 +310,7 @@ pyyaml==5.4.1
     # via
     #   eth-brownie
     #   pre-commit
-regex==2021.10.23
+regex==2021.11.10
     # via
     #   black
     #   eth-brownie
@@ -347,15 +357,17 @@ tomli==1.2.2
     #   black
     #   eth-brownie
     #   pep517
-toolz==0.11.1
+toolz==0.11.2
     # via
     #   cytoolz
     #   eth-brownie
 tqdm==4.62.3
     # via eth-brownie
+typed-ast==1.5.1
+    # via eth-brownie
 typing-extensions==3.10.0.2
     # via
-    #   aiohttp
+    #   async-timeout
     #   black
     #   eth-brownie
 urllib3==1.26.7
@@ -366,30 +378,34 @@ varint==1.0.2
     # via
     #   eth-brownie
     #   multiaddr
-virtualenv==20.10.0
+virtualenv==20.13.1
     # via pre-commit
 vvm==0.1.0
     # via eth-brownie
-vyper==0.3.0
+vyper==0.3.1
     # via eth-brownie
 wcwidth==0.2.5
     # via
     #   eth-brownie
     #   prompt-toolkit
-web3==5.24.0
+web3==5.25.0
     # via eth-brownie
 websockets==9.1
     # via
     #   eth-brownie
     #   web3
-wheel==0.37.0
+wheel==0.37.1
     # via pip-tools
-wrapt==1.13.2
+wrapt==1.13.3
     # via eth-brownie
-yarl==1.7.0
+yarl==1.7.2
     # via
     #   aiohttp
     #   eth-brownie
+zipp==3.6.0
+    # via
+    #   eth-brownie
+    #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
