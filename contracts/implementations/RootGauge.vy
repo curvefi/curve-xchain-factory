@@ -81,9 +81,8 @@ def transmit_emissions():
     """
     assert msg.sender == self.factory  # dev: call via factory
 
-    minted: uint256 = self.total_emissions
-    Minter(MINTER).mint(self)  # mutates storage via user_checkpoint
-    minted = self.total_emissions - minted
+    Minter(MINTER).mint(self)
+    minted: uint256 = ERC20(CRV).balanceOf(self)
 
     assert minted != 0  # dev: nothing minted
     bridger: address = self.bridger
