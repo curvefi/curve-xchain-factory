@@ -53,7 +53,7 @@ def main():
             gauges_to_emit.append(gauge_addr)
         except Exception:
             pass
-    if len(gauges_to_emit != 0):
+    if len(gauges_to_emit) != 0:
         print(gauges_to_emit)
     else:
         print("No gauges require a kickstart")
