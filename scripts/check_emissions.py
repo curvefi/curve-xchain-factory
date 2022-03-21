@@ -21,6 +21,8 @@ NETWORK_IDS = [
     1666600000,  # harmony
 ]
 
+dev = accounts.load("dev")
+
 
 def main():
     factory = RootGaugeFactory.at("0xabC000d88f23Bb45525E447528DBF656A9D55bf5")
@@ -49,11 +51,11 @@ def main():
     gauges_to_emit = []
     for gauge_addr in transmission_set:
         try:
-            factory.transmit_emissions(gauge_addr, {"from": accounts[0], "allow_revert": True})
-            gauges_to_emit.append(gauge_addr)
+            factory.transmit_emissions.call(gauge_addr)
+            factory.transmit_emissions(gauge_addr, {"from": dev, "priority_fee": "2 gwei"})
         except Exception:
             pass
     if len(gauges_to_emit) != 0:
         print(gauges_to_emit)
     else:
-        print("No gauges require a kickstart")
+        print("No gauges required a kickstart")
