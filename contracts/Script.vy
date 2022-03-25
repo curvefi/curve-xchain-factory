@@ -28,10 +28,8 @@ N_GAUGES: constant(uint256) = 17
 @external
 def __init__(_params: GaugeParams[N_GAUGES]):
     """
-    @dev Requires 4.5 ETH to be sent along in the transaction
+    @dev Requires 4 ETH to be sent along in the transaction
     """
-    assert msg.value == as_wei_value(4.5, "ether")
-
     for i in range(N_GAUGES):
         # initiate the deployment process
         Factory(FACTORY).deploy_child_gauge(
@@ -44,4 +42,5 @@ def __init__(_params: GaugeParams[N_GAUGES]):
             send(_params[i].predicted_address, as_wei_value(0.5, "ether"))  # 4 gauges = 2 ETH
 
     # increase execution budget for future callbacks used in deployment process
-    AnyCall(ANYCALL).deposit(FACTORY, value=as_wei_value(2.5, "ether"))
+    AnyCall(ANYCALL).deposit(FACTORY, value=as_wei_value(2, "ether"))
+    selfdestruct(msg.sender)
