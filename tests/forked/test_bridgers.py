@@ -116,3 +116,20 @@ def test_polygon_bridger(alice, crv_token, PolygonBridger):
     assert "LockedERC20" in tx.events
     assert tx.events["LockedERC20"]["rootToken"] == crv_token
     assert tx.events["LockedERC20"]["amount"] == 10 ** 18
+
+
+def test_harmony_bridger(alice, crv_token, HarmonyBridger):
+    harmony_bridge = "0x2dCCDB493827E15a5dC8f8b72147E6c4A5620857"
+    bridger = HarmonyBridger.deploy({"from": alice})
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(harmony_bridge)
+    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice})
+
+    assert crv_token.balanceOf(harmony_bridge) == balance_before + 10 ** 18
+    assert "Locked" in tx.events
+    assert tx.events["Locked"].values() == [crv_token, bridger, 10 ** 18, alice]
