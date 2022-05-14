@@ -10,8 +10,8 @@ YEAR = 365 * 86400
 
 @pytest.mark.skip_coverage
 def test_emissions_against_expected(alice, root_gauge_controller, root_gauge, root_crv_token):
-    root_gauge_controller.add_type("Test", 10 ** 18, {"from": alice})
-    root_gauge_controller.add_gauge(root_gauge, 0, 10 ** 18, {"from": alice})
+    root_gauge_controller.add_type("Test", 10**18, {"from": alice})
+    root_gauge_controller.add_gauge(root_gauge, 0, 10**18, {"from": alice})
 
     chain.mine(timedelta=WEEK)
 
@@ -32,11 +32,11 @@ def test_emissions_against_expected(alice, root_gauge_controller, root_gauge, ro
         # calculate the expected emissions, and checkpoint to update actual emissions
         if last_week <= future_epoch_time < this_week:
             # the core of the maff
-            last_week_expected = gauge_weight * rate * (future_epoch_time - last_week) / 10 ** 18
-            rate = rate * 10 ** 18 // 1189207115002721024
-            last_week_expected += gauge_weight * rate * (this_week - future_epoch_time) / 10 ** 18
+            last_week_expected = gauge_weight * rate * (future_epoch_time - last_week) / 10**18
+            rate = rate * 10**18 // 1189207115002721024
+            last_week_expected += gauge_weight * rate * (this_week - future_epoch_time) / 10**18
         else:
-            last_week_expected = gauge_weight * rate * WEEK // 10 ** 18
+            last_week_expected = gauge_weight * rate * WEEK // 10**18
 
         root_gauge.user_checkpoint(alice, {"from": alice})
 
@@ -58,8 +58,8 @@ def test_emissions_against_expected(alice, root_gauge_controller, root_gauge, ro
 
 
 def test_transmit(alice, root_gauge, root_gauge_controller, mock_bridger, root_crv_token):
-    root_gauge_controller.add_type("Test", 10 ** 18, {"from": alice})
-    root_gauge_controller.add_gauge(root_gauge, 0, 10 ** 18, {"from": alice})
+    root_gauge_controller.add_type("Test", 10**18, {"from": alice})
+    root_gauge_controller.add_gauge(root_gauge, 0, 10**18, {"from": alice})
 
     chain.mine(timedelta=3 * WEEK)
 
@@ -73,8 +73,8 @@ def test_transmit(alice, root_gauge, root_gauge_controller, mock_bridger, root_c
 def test_transmit_directly_fails(
     alice, root_gauge, root_gauge_controller, mock_bridger, root_crv_token
 ):
-    root_gauge_controller.add_type("Test", 10 ** 18, {"from": alice})
-    root_gauge_controller.add_gauge(root_gauge, 0, 10 ** 18, {"from": alice})
+    root_gauge_controller.add_type("Test", 10**18, {"from": alice})
+    root_gauge_controller.add_gauge(root_gauge, 0, 10**18, {"from": alice})
 
     chain.mine(timedelta=3 * WEEK)
 

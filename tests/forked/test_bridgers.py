@@ -5,23 +5,23 @@ from brownie_tokens import MintableForkToken
 @pytest.fixture
 def crv_token(alice):
     crv = MintableForkToken("0xD533a949740bb3306d119CC777fa900bA034cd52")
-    crv._mint_for_testing(alice, 10 ** 18, {"from": alice})
+    crv._mint_for_testing(alice, 10**18, {"from": alice})
     return crv
 
 
 def test_arbitrum_bridger(alice, crv_token, ArbitrumBridger):
-    gas_limit, gas_price, submission_cost = 1_000_000, 2 * 10 ** 9, 10 ** 13
+    gas_limit, gas_price, submission_cost = 1_000_000, 2 * 10**9, 10**13
     bridger = ArbitrumBridger.deploy(gas_limit, gas_price, submission_cost, {"from": alice})
 
     assert bridger.cost() == gas_limit * gas_price + submission_cost
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice, "value": bridger.cost()})
 
     assert "DepositInitiated" in tx.events
     assert tx.events["DepositInitiated"]["_to"] == alice
-    assert tx.events["DepositInitiated"]["_amount"] == 10 ** 18
+    assert tx.events["DepositInitiated"]["_amount"] == 10**18
 
 
 def test_multichain_bridger(alice, crv_token, MultichainBridger):
@@ -33,11 +33,11 @@ def test_multichain_bridger(alice, crv_token, MultichainBridger):
     assert bridger.cost() == 0
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
     balance_before = crv_token.balanceOf(anyswap_bridge)
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice, "value": bridger.cost()})
 
-    assert crv_token.balanceOf(anyswap_bridge) == balance_before + 10 ** 18
+    assert crv_token.balanceOf(anyswap_bridge) == balance_before + 10**18
     assert len(tx.subcalls) == 1
     expected = {
         "from": bridger,
@@ -45,7 +45,7 @@ def test_multichain_bridger(alice, crv_token, MultichainBridger):
         "inputs": {
             "_from": alice,
             "_to": anyswap_bridge,
-            "_value": 10 ** 18,
+            "_value": 10**18,
         },
         "op": "CALL",
         "to": crv_token,
@@ -61,12 +61,12 @@ def test_omni_bridger(alice, crv_token, OmniBridger):
     assert bridger.cost() == 0
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
 
     balance_before = crv_token.balanceOf(omni_bridge)
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice, "value": bridger.cost()})
 
-    assert crv_token.balanceOf(omni_bridge) == balance_before + 10 ** 18
+    assert crv_token.balanceOf(omni_bridge) == balance_before + 10**18
     assert "TokensBridgingInitiated" in tx.events
     assert tx.events["TokensBridgingInitiated"]["token"] == crv_token
 
@@ -83,19 +83,19 @@ def test_optimism_bridger(alice, crv_token, OptimismBridger):
     assert bridger.cost() == 0
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
 
     balance_before = crv_token.balanceOf(optimism_bridge)
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice, "value": bridger.cost()})
 
-    assert crv_token.balanceOf(optimism_bridge) == balance_before + 10 ** 18
+    assert crv_token.balanceOf(optimism_bridge) == balance_before + 10**18
     assert "ERC20DepositInitiated" in tx.events
     assert tx.events["TokensBridgingInitiated"].values() == [
         crv_token,
         l2_crv,
         bridger,
         alice,
-        10 ** 18,
+        10**18,
         b"",
     ]
 
@@ -107,15 +107,15 @@ def test_polygon_bridger(alice, crv_token, PolygonBridger):
     assert bridger.cost() == 0
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
 
     balance_before = crv_token.balanceOf(poly_bridge_rec)
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice, "value": bridger.cost()})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice, "value": bridger.cost()})
 
-    assert crv_token.balanceOf(poly_bridge_rec) == balance_before + 10 ** 18
+    assert crv_token.balanceOf(poly_bridge_rec) == balance_before + 10**18
     assert "LockedERC20" in tx.events
     assert tx.events["LockedERC20"]["rootToken"] == crv_token
-    assert tx.events["LockedERC20"]["amount"] == 10 ** 18
+    assert tx.events["LockedERC20"]["amount"] == 10**18
 
 
 def test_harmony_bridger(alice, crv_token, HarmonyBridger):
@@ -125,11 +125,11 @@ def test_harmony_bridger(alice, crv_token, HarmonyBridger):
     assert bridger.cost() == 0
     assert bridger.check(alice) is True
 
-    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
 
     balance_before = crv_token.balanceOf(harmony_bridge)
-    tx = bridger.bridge(crv_token, alice, 10 ** 18, {"from": alice})
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice})
 
-    assert crv_token.balanceOf(harmony_bridge) == balance_before + 10 ** 18
+    assert crv_token.balanceOf(harmony_bridge) == balance_before + 10**18
     assert "Locked" in tx.events
-    assert tx.events["Locked"].values() == [crv_token, bridger, 10 ** 18, alice]
+    assert tx.events["Locked"].values() == [crv_token, bridger, 10**18, alice]

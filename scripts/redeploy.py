@@ -9,10 +9,10 @@ with open("redeploy_data.csv") as f:
 
 tx = {
     "nonce": "0x",
-    "gasPrice": 40 * 10 ** 9,
+    "gasPrice": 40 * 10**9,
     "gasLimit": 600000,
     "to": "0x",
-    "value": 4 * 10 ** 18,  # 4 ETH
+    "value": 4 * 10**18,  # 4 ETH
     "data": Script.deploy.encode_input(data),
     "v": 27,
     "r": 0x1234567890ABCDEF,

@@ -4,8 +4,8 @@ import pytest
 
 @pytest.fixture(scope="module", autouse=True)
 def deposit_setup(accounts, child_gauge, lp_token):
-    lp_token._mint_for_testing(accounts[0], 10 ** 24, {"from": accounts[0]})
-    lp_token.approve(child_gauge, 2 ** 256 - 1, {"from": accounts[0]})
+    lp_token._mint_for_testing(accounts[0], 10**24, {"from": accounts[0]})
+    lp_token.approve(child_gauge, 2**256 - 1, {"from": accounts[0]})
 
 
 def test_deposit(accounts, child_gauge, lp_token):
