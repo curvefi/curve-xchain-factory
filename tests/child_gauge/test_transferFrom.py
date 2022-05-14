@@ -6,9 +6,9 @@ from hexbytes import HexBytes
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(accounts, child_gauge, lp_token):
-    lp_token._mint_for_testing(accounts[0], 10 ** 24, {"from": accounts[0]})
-    lp_token.approve(child_gauge, 2 ** 256 - 1, {"from": accounts[0]})
-    child_gauge.deposit(10 ** 18, {"from": accounts[0]})
+    lp_token._mint_for_testing(accounts[0], 10**24, {"from": accounts[0]})
+    lp_token.approve(child_gauge, 2**256 - 1, {"from": accounts[0]})
+    child_gauge.deposit(10**18, {"from": accounts[0]})
 
 
 def test_sender_balance_decreases(accounts, child_gauge):
@@ -139,10 +139,10 @@ def test_no_approval(accounts, child_gauge):
 
 
 def test_infinite_approval(accounts, child_gauge):
-    child_gauge.approve(accounts[1], 2 ** 256 - 1, {"from": accounts[0]})
+    child_gauge.approve(accounts[1], 2**256 - 1, {"from": accounts[0]})
     child_gauge.transferFrom(accounts[0], accounts[2], 10000, {"from": accounts[1]})
 
-    assert child_gauge.allowance(accounts[0], accounts[1]) == 2 ** 256 - 1
+    assert child_gauge.allowance(accounts[0], accounts[1]) == 2**256 - 1
 
 
 def test_revoked_approval(accounts, child_gauge):

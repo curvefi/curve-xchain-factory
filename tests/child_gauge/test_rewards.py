@@ -45,11 +45,11 @@ def test_set_reward_distributor_admin_only(accounts, chain, reward_token, child_
 
 
 def test_deposit_reward_token(alice, child_gauge, reward_token):
-    reward_token._mint_for_testing(alice, 10 ** 26, {"from": alice})
-    reward_token.approve(child_gauge, 2 ** 256 - 1, {"from": alice})
+    reward_token._mint_for_testing(alice, 10**26, {"from": alice})
+    reward_token.approve(child_gauge, 2**256 - 1, {"from": alice})
 
     child_gauge.add_reward(reward_token, alice, {"from": alice})
-    tx = child_gauge.deposit_reward_token(reward_token, 10 ** 26, {"from": alice})
+    tx = child_gauge.deposit_reward_token(reward_token, 10**26, {"from": alice})
 
-    expected = (alice, tx.timestamp + WEEK, 10 ** 26 // WEEK, tx.timestamp, 0)
+    expected = (alice, tx.timestamp + WEEK, 10**26 // WEEK, tx.timestamp, 0)
     assert child_gauge.reward_data(reward_token) == expected
