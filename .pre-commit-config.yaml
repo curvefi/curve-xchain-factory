@@ -2,13 +2,13 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.2.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
   - repo: https://github.com/psf/black
-    rev: 21.9b0
+    rev: 22.3.0
     hooks:
       - id: black
   - repo: https://gitlab.com/PyCQA/flake8
@@ -16,11 +16,11 @@ repos:
     hooks:
       - id: flake8
   - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.9.3
+    rev: v5.10.1
     hooks:
       - id: isort
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v2.18.1
+    rev: v2.26.0
     hooks:
       - id: commitizen
         stages: [commit-msg]
