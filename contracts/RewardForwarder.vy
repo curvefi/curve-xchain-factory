@@ -34,7 +34,7 @@ def allow(_reward_token: address):
     """
     response: Bytes[32] = raw_call(
         _reward_token,
-        _abi_encode(GAUGE, MAX_UINT256, method_id=method_id("approve(address,uint256")),
+        _abi_encode(GAUGE, MAX_UINT256, method_id=method_id("approve(address,uint256)")),
         max_outsize=32,
     )
     if len(response) != 0:
