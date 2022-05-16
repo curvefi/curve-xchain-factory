@@ -2,6 +2,7 @@ import pytest
 from brownie import Contract
 from brownie_tokens import ERC20
 
+
 # ANYCALL DEPLOYMENT
 
 
@@ -46,6 +47,11 @@ def child_gauge_impl(alice, child_crv_token, ChildGauge, child_gauge_factory):
 def child_gauge(alice, child_gauge_impl, child_gauge_factory, lp_token, ChildGauge):
     gauge_addr = child_gauge_factory.deploy_gauge(lp_token, 0x0, {"from": alice}).return_value
     return Contract.from_abi("Child Gauge", gauge_addr, ChildGauge.abi)
+
+
+@pytest.fixture(scope="module")
+def reward_forwarder(child_gauge, alice, RewardForwarder):
+    return RewardForwarder.deploy(child_gauge, {"from": alice})
 
 
 # ROOT CHAIN DAO
