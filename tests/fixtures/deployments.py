@@ -37,6 +37,12 @@ def reward_token(alice):
 
 
 @pytest.fixture(scope="module")
+def unauthorised_token(alice):
+    """This is for testing unauthorised token"""
+    return ERC20("Dummy Unauthorised Reward Token", "dURT", 18, deployer=alice)
+
+
+@pytest.fixture(scope="module")
 def child_gauge_impl(alice, child_crv_token, ChildGauge, child_gauge_factory):
     impl = ChildGauge.deploy(child_crv_token, child_gauge_factory, {"from": alice})
     child_gauge_factory.set_implementation(impl, {"from": alice})
@@ -125,3 +131,8 @@ def root_gauge_impl(
 def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootGauge):
     gauge_addr = root_gauge_factory.deploy_gauge(chain.id, 0x0, {"from": alice}).return_value
     return Contract.from_abi("Root Gauge", gauge_addr, RootGauge.abi)
+
+
+@pytest.fixture(scope="module")
+def root_gauge_factory_proxy(alice, RootGaugeFactoryProxy):
+    return RootGaugeFactoryProxy.deploy({"from": alice})
