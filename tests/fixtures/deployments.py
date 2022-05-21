@@ -2,7 +2,6 @@ import pytest
 from brownie import Contract
 from brownie_tokens import ERC20
 
-
 # ANYCALL DEPLOYMENT
 
 
