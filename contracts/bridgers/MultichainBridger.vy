@@ -5,14 +5,28 @@
 from vyper.interfaces import ERC20
 
 
+event TransferOwnership:
+    _old_owner: indexed(address)
+    _new_owner: indexed(address)
+
+
 ANYCALL: immutable(address)
 ANYSWAP_BRIDGE: immutable(address)
+
+
+minimum: public(HashMap[address, uint256])
+
+owner: public(address)
+future_owner: public(address)
 
 
 @external
 def __init__(_anycall: address, _anyswap_bridge: address):
     ANYCALL = _anycall
     ANYSWAP_BRIDGE = _anyswap_bridge
+
+    self.owner = msg.sender
+    log TransferOwnership(ZERO_ADDRESS, msg.sender)
 
 
 @external
@@ -27,7 +41,30 @@ def bridge(_token: address, _to: address, _amount: uint256):
     @param _amount The amount to bridge
     """
     assert _to == msg.sender  # dev: invalid destination
+    assert _amount >= self.minimum[_token]
     assert ERC20(_token).transferFrom(msg.sender, ANYSWAP_BRIDGE, _amount)
+
+
+@external
+def set_minimum(_token: address, _minimum: uint256):
+    assert msg.sender == self.owner
+
+    self.minimum[_token] = _minimum
+
+
+@external
+def commit_transfer_ownership(_future_owner: address):
+    assert msg.sender == self.owner
+
+    self.future_owner = _future_owner
+
+
+@external
+def accept_transfer_ownership():
+    assert msg.sender == self.future_owner
+
+    log TransferOwnership(self.owner, msg.sender)
+    self.owner = msg.sender
 
 
 @view
