@@ -53,7 +53,7 @@ event TransferOwnership:
 WEEK: constant(uint256) = 86400 * 7
 
 
-CRV: immutable(address)
+CRV: public(address)
 
 
 get_implementation: public(address)
@@ -75,7 +75,7 @@ get_gauge: public(address[MAX_INT128])
 
 @external
 def __init__(_call_proxy: address, _crv: address, _owner: address):
-    CRV = _crv
+    self.CRV = _crv
 
     self.call_proxy = _call_proxy
     log UpdateCallProxy(ZERO_ADDRESS, _call_proxy)
@@ -107,7 +107,7 @@ def _psuedo_mint(_gauge: address, _user: address):
     if to_mint != 0:
         # transfer tokens to user
         response: Bytes[32] = raw_call(
-            CRV,
+            self.CRV,
             _abi_encode(_user, to_mint, method_id=method_id("transfer(address,uint256)")),
             max_outsize=32,
         )
@@ -237,6 +237,13 @@ def set_call_proxy(_new_call_proxy: address):
 
     log UpdateCallProxy(self.call_proxy, _new_call_proxy)
     self.call_proxy = _new_call_proxy
+
+
+@external
+def set_crv(_crv: address):
+    assert msg.sender == self.owner
+
+    self.CRV = _crv
 
 
 @external

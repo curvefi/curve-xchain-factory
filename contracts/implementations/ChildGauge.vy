@@ -15,6 +15,7 @@ interface ERC20Extended:
 interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
+    def CRV() -> address: view
 
 interface Minter:
     def minted(_user: address, _gauge: address) -> uint256: view
@@ -67,7 +68,6 @@ WEEK: constant(uint256) = 86400 * 7
 VERSION: constant(String[8]) = "v0.1.0"
 
 
-CRV: immutable(address)
 FACTORY: immutable(address)
 
 
@@ -112,10 +112,9 @@ inflation_rate: public(HashMap[uint256, uint256])
 
 
 @external
-def __init__(_crv_token: address, _factory: address):
+def __init__(_factory: address):
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
-    CRV = _crv_token
     FACTORY = _factory
 
 
@@ -150,11 +149,13 @@ def _checkpoint(_user: address):
             week_time = min(week_time + WEEK, block.timestamp)
 
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
-    crv_balance: uint256 = ERC20(CRV).balanceOf(self)
-    if crv_balance != 0:
-        current_week: uint256 = block.timestamp / WEEK
-        self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
-        ERC20(CRV).transfer(FACTORY, crv_balance)
+    CRV: address = Factory(FACTORY).CRV()
+    if CRV != ZERO_ADDRESS:
+        crv_balance: uint256 = ERC20(CRV).balanceOf(self)
+        if crv_balance != 0:
+            current_week: uint256 = block.timestamp / WEEK
+            self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
+            ERC20(CRV).transfer(FACTORY, crv_balance)
 
     period += 1
     self.period = period
