@@ -1,4 +1,4 @@
-# @version 0.3.1
+# @version 0.3.3
 """
 @notice Curve Arbitrum Bridge Wrapper
 """
@@ -7,14 +7,24 @@ from vyper.interfaces import ERC20
 
 interface GatewayRouter:
     def getGateway(_token: address) -> address: view
-    def outboundTransfer(  # emits DepositInitiated event with Inbox sequence #
+    def outboundTransferCustomRefund(  # emits DepositInitiated event with Inbox sequence #
         _token: address,
+        _refund_to: address,
         _to: address,
         _amount: uint256,
         _max_gas: uint256,
         _gas_price_bid: uint256,
         _data: Bytes[128],  # _max_submission_cost, _extra_data
     ): payable
+    def getOutboundCalldata(
+        _from: address,
+        _to: address,
+        _amount: uint256,
+        _data: Bytes[128]
+    ) -> (uint256, uint256): view  # actually returns bytes, but we just need the size
+
+interface Inbox:
+    def calculateRetryableSubmissionFee(_data_length: uint256, _base_fee: uint256) -> uint256: view
 
 
 event TransferOwnership:
@@ -29,6 +39,7 @@ event UpdateSubmissionData:
 CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 GATEWAY: constant(address) = 0xa3A7B6F88361F48403514059F1F16C8E78d60EeC
 GATEWAY_ROUTER: constant(address) = 0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef
+INBOX: constant(address) = 0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f
 
 
 # [gas_limit uint128][gas_price uint128]
@@ -74,6 +85,15 @@ def bridge(_token: address, _to: address, _amount: uint256):
     data: uint256 = self.submission_data
     gas_limit: uint256 = shift(data, -128)
     gas_price: uint256 = data % 2 ** 128
+    submission_cost: uint256 = Inbox(INBOX).calculateRetryableSubmissionFee(
+        GatewayRouter(GATEWAY_ROUTER).getOutboundCalldata(
+            self,
+            msg.sender,
+            _amount,
+            b"",
+        )[1] + 256,
+        block.basefee
+    )
 
     # NOTE: Excess ETH fee is refunded to this bridger's address on L2.
     # After bridging, the token should arrive on Arbitrum within 10 minutes. If it
@@ -84,14 +104,15 @@ def bridge(_token: address, _to: address, _amount: uint256):
     # The calldata for this manual transaction is easily obtained by finding the reverted
     # transaction in the tx history for 0x000000000000000000000000000000000000006e on Arbiscan.
     # https://developer.offchainlabs.com/docs/l1_l2_messages#retryable-transaction-lifecycle
-    GatewayRouter(GATEWAY_ROUTER).outboundTransfer(
+    GatewayRouter(GATEWAY_ROUTER).outboundTransferCustomRefund(
         _token,
+        self.owner,
         _to,
         _amount,
         gas_limit,
         gas_price,
-        b"",  # _abi_encode(max_submission_cost, b""),
-        value=gas_limit * gas_price
+        _abi_encode(submission_cost, b""),
+        value=gas_limit * gas_price + submission_cost
     )
 
 
@@ -101,9 +122,18 @@ def cost() -> uint256:
     """
     @notice Cost in ETH to bridge
     """
+    submission_cost: uint256 = Inbox(INBOX).calculateRetryableSubmissionFee(
+        GatewayRouter(GATEWAY_ROUTER).getOutboundCalldata(
+            self,
+            msg.sender,
+            10 ** 36,
+            b"",
+        )[1] + 256,
+        block.basefee
+    )
     data: uint256 = self.submission_data
     # gas_limit * gas_price
-    return shift(data, -128) * data % 2 ** 128
+    return shift(data, -128) * data % 2 ** 128 + submission_cost
 
 
 @pure
@@ -161,6 +191,7 @@ def accept_transfer_ownership():
     @dev Only the committed future owner can call this function
     """
     assert msg.sender == self.future_owner  # dev: only future owner
+    assert not msg.sender.is_contract
 
     log TransferOwnership(self.owner, msg.sender)
     self.owner = msg.sender
