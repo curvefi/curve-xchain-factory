@@ -117,7 +117,8 @@ def bridge(_token: address, _to: address, _amount: uint256):
         value=gas_limit * gas_price + submission_cost
     )
 
-    send(msg.sender, self.balance)
+    if self.balance != 0:
+        raw_call(msg.sender, b"", value=self.balance)
 
 
 @view
