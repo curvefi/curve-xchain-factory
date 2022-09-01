@@ -22,8 +22,8 @@ event TransferOwnership:
     _new_owner: address
 
 event UpdateSubmissionData:
-    _old_submission_data: uint256[3]
-    _new_submission_data: uint256[3]
+    _old_submission_data: uint256[2]
+    _new_submission_data: uint256[2]
 
 
 CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
@@ -31,21 +31,22 @@ GATEWAY: constant(address) = 0xa3A7B6F88361F48403514059F1F16C8E78d60EeC
 GATEWAY_ROUTER: constant(address) = 0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef
 
 
-# [gas_limit uint64][gas_price uint64][max_submission_cost uint64]
+# [gas_limit uint128][gas_price uint128]
 submission_data: uint256
 is_approved: public(HashMap[address, bool])
+is_killed: public(bool)
 
 owner: public(address)
 future_owner: public(address)
 
 
 @external
-def __init__(_gas_limit: uint256, _gas_price: uint256, _max_submission_cost: uint256):
-    for value in [_gas_limit, _gas_price, _max_submission_cost]:
-        assert value < 2 ** 64
+def __init__(_gas_limit: uint256, _gas_price: uint256):
+    for value in [_gas_limit, _gas_price]:
+        assert value < 2 ** 128
 
-    self.submission_data = shift(_gas_limit, 128) + shift(_gas_price, 64) + _max_submission_cost
-    log UpdateSubmissionData([0, 0, 0], [_gas_limit, _gas_price, _max_submission_cost])
+    self.submission_data = shift(_gas_limit, 128) + _gas_price
+    log UpdateSubmissionData([0, 0], [_gas_limit, _gas_price])
 
     assert ERC20(CRV20).approve(GATEWAY, MAX_UINT256)
     self.is_approved[CRV20] = True
@@ -63,6 +64,7 @@ def bridge(_token: address, _to: address, _amount: uint256):
     @param _to The address to deposit token to on L2
     @param _amount The amount of `_token` to deposit
     """
+    assert not self.is_killed
     assert ERC20(_token).transferFrom(msg.sender, self, _amount)
 
     if _token != CRV20 and not self.is_approved[_token]:
@@ -71,8 +73,7 @@ def bridge(_token: address, _to: address, _amount: uint256):
 
     data: uint256 = self.submission_data
     gas_limit: uint256 = shift(data, -128)
-    gas_price: uint256 = shift(data, -64) % 2 ** 64
-    max_submission_cost: uint256 = data % 2 ** 64
+    gas_price: uint256 = data % 2 ** 128
 
     # NOTE: Excess ETH fee is refunded to this bridger's address on L2.
     # After bridging, the token should arrive on Arbitrum within 10 minutes. If it
@@ -89,8 +90,8 @@ def bridge(_token: address, _to: address, _amount: uint256):
         _amount,
         gas_limit,
         gas_price,
-        _abi_encode(max_submission_cost, b""),
-        value=gas_limit * gas_price + max_submission_cost
+        b"",  # _abi_encode(max_submission_cost, b""),
+        value=gas_limit * gas_price
     )
 
 
@@ -101,8 +102,8 @@ def cost() -> uint256:
     @notice Cost in ETH to bridge
     """
     data: uint256 = self.submission_data
-    # gas_limit * gas_price + max_submission_cost
-    return shift(data, -128) * (shift(data, -64) % 2 ** 64) + data % 2 ** 64
+    # gas_limit * gas_price
+    return shift(data, -128) * data % 2 ** 128
 
 
 @pure
@@ -116,24 +117,30 @@ def check(_account: address) -> bool:
 
 
 @external
-def set_submission_data(_gas_limit: uint256, _gas_price: uint256, _max_submission_cost: uint256):
+def set_submission_data(_gas_limit: uint256, _gas_price: uint256):
     """
     @notice Update the arb retryable ticket submission data
     @param _gas_limit The gas limit for the retryable ticket tx
     @param _gas_price The gas price for the retryable ticket tx
-    @param _max_submission_cost The max submission cost for the retryable ticket
     """
     assert msg.sender == self.owner
 
-    for value in [_gas_limit, _gas_price, _max_submission_cost]:
-        assert value < 2 ** 64
+    for value in [_gas_limit, _gas_price]:
+        assert value < 2 ** 128
 
     data: uint256 = self.submission_data
-    self.submission_data = shift(_gas_limit, 128) + shift(_gas_price, 64) + _max_submission_cost
+    self.submission_data = shift(_gas_limit, 128) + _gas_price
     log UpdateSubmissionData(
-        [shift(data, -128), shift(data, -64) % 2 ** 64, data % 2 ** 64],
-        [_gas_limit, _gas_price, _max_submission_cost]
+        [shift(data, -128), data % 2 ** 128],
+        [_gas_limit, _gas_price]
     )
+
+
+@external
+def set_killed(_is_killed: bool):
+    assert msg.sender == self.owner
+    
+    self.is_killed = _is_killed
 
 
 @external
@@ -174,13 +181,4 @@ def gas_price() -> uint256:
     """
     @notice Get gas price used for L2 retryable ticket
     """
-    return shift(self.submission_data, -64) % 2 ** 64
-
-
-@view
-@external
-def max_submission_cost() -> uint256:
-    """
-    @notice Get max submission cost for L2 retryable ticket
-    """
-    return self.submission_data % 2 ** 64
+    return self.submission_data % 2 ** 128
