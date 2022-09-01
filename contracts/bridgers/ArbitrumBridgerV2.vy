@@ -17,6 +17,7 @@ interface GatewayRouter:
         _data: Bytes[128],  # _max_submission_cost, _extra_data
     ): payable
     def getOutboundCalldata(
+        _token: address,
         _from: address,
         _to: address,
         _amount: uint256,
@@ -87,6 +88,7 @@ def bridge(_token: address, _to: address, _amount: uint256):
     gas_price: uint256 = data % 2 ** 128
     submission_cost: uint256 = Inbox(INBOX).calculateRetryableSubmissionFee(
         GatewayRouter(GATEWAY_ROUTER).getOutboundCalldata(
+            _token,
             self,
             msg.sender,
             _amount,
@@ -115,6 +117,8 @@ def bridge(_token: address, _to: address, _amount: uint256):
         value=gas_limit * gas_price + submission_cost
     )
 
+    send(msg.sender, self.balance)
+
 
 @view
 @external
@@ -124,6 +128,7 @@ def cost() -> uint256:
     """
     submission_cost: uint256 = Inbox(INBOX).calculateRetryableSubmissionFee(
         GatewayRouter(GATEWAY_ROUTER).getOutboundCalldata(
+            CRV20,
             self,
             msg.sender,
             10 ** 36,
