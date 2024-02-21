@@ -131,3 +131,5 @@ dmypy.json
 # eth-brownie
 .history
 reports/
+
+.idea/
