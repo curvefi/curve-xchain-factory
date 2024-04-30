@@ -133,3 +133,20 @@ def test_harmony_bridger(alice, crv_token, HarmonyBridger):
     assert crv_token.balanceOf(harmony_bridge) == balance_before + 10**18
     assert "Locked" in tx.events
     assert tx.events["Locked"].values() == [crv_token, bridger, 10**18, alice]
+
+
+def test_polygonzkevm_bridger(alice, crv_token, PolygonzkEVMBridger):
+    bridge = "0x2a3DD3EB832aF982ec71669E178424b10Dca2EDe"
+    bridger = PolygonzkEVMBridger.deploy(bridge, 3, {"from": alice})
+
+    assert bridger.cost() == 0
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2**256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(bridge)
+    tx = bridger.bridge(crv_token, alice, 10**18, {"from": alice})
+
+    assert crv_token.balanceOf(bridge) == balance_before + 10**18
+    assert "BridgeEvent" in tx.events
+    assert tx.events["BridgeEvent"].values()[2:5] == [crv_token, 3, bridger]

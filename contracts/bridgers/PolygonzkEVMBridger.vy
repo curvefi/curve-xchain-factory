@@ -5,16 +5,20 @@
 from vyper.interfaces import ERC20
 
 
+interface PolygonZkEVMBridge:
+    def bridgeAsset(destination_network: uint32, destination_address: address, amount: uint256, token: address, force_update: bool, permit_data: Bytes[2]): nonpayable
+
+
 CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-L1_BRIDGE: immutable(address)
+L1_BRIDGE: immutable(PolygonZkEVMBridge)
 
 DESTINATION_NETWORK: immutable(uint32)
 
 
 @external
-def __init__(_l1_bridge: address, _network: uint32):
+def __init__(_l1_bridge: PolygonZkEVMBridge, _network: uint32):
     L1_BRIDGE = _l1_bridge
-    assert ERC20(CRV20).approve(_l1_bridge, max_value(uint256))
+    assert ERC20(CRV20).approve(_l1_bridge.address, max_value(uint256))
 
     DESTINATION_NETWORK = _network
 
@@ -29,21 +33,10 @@ def bridge(_token: ERC20, _to: address, _amount: uint256):
     """
     assert _token.transferFrom(msg.sender, self, _amount)
 
-    if _token.allowance(self, L1_BRIDGE) < _amount:
-        _token.approve(L1_BRIDGE, max_value(uint256))
+    if _token.allowance(self, L1_BRIDGE.address) < _amount:
+        _token.approve(L1_BRIDGE.address, max_value(uint256))
 
-    raw_call(
-        L1_BRIDGE,
-        _abi_encode(
-            DESTINATION_NETWORK,
-            _to,
-            _amount,
-            _token.address,
-            False,
-            b"",
-            method_id=method_id("bridgeAsset(uint32,address,uint256,address,bool,bytes")
-        )
-    )
+    L1_BRIDGE.bridgeAsset(DESTINATION_NETWORK, _to, _amount, _token.address, False, b"")
 
 
 @view
