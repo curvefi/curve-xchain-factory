@@ -27,6 +27,7 @@ def __init__(_l1_bridge: PolygonZkEVMBridge, _network: uint32):
 def bridge(_token: ERC20, _to: address, _amount: uint256):
     """
     @notice Bridge a token to Polygon zkEVM using built-in PolygonZkEVMBridge
+    @dev Might need `claimAsset` on destination chain, save `depositCount` from POLYGON_ZKEVM_BRIDGE.BridgeEvent
     @param _token The token to bridge
     @param _to The address to deposit the token to on L2
     @param _amount The amount of the token to deposit
@@ -36,7 +37,7 @@ def bridge(_token: ERC20, _to: address, _amount: uint256):
     if _token.allowance(self, L1_BRIDGE.address) < _amount:
         _token.approve(L1_BRIDGE.address, max_value(uint256))
 
-    L1_BRIDGE.bridgeAsset(DESTINATION_NETWORK, _to, _amount, _token.address, False, b"")
+    L1_BRIDGE.bridgeAsset(DESTINATION_NETWORK, _to, _amount, _token.address, True, b"")
 
 
 @view
