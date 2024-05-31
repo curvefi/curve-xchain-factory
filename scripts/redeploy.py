@@ -33,4 +33,4 @@ def main():
         "Contract instance will be created and destroyed at:",
         accounts.at(sender, force=True).get_deployment_address(0),
     )
-    print(f"Then submit the following raw transaction:\n\n'{serialized}")
+    print(f"Then submit the following raw transaction: \n\n'{serialized}")
