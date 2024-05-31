@@ -1,7 +1,7 @@
 import brownie
 from brownie import ETH_ADDRESS, ZERO_ADDRESS, compile_source
 from brownie.convert.datatypes import HexString
-from eth_abi import abi
+from eth_abi import encode
 
 
 def test_deploy_root_gauge(
@@ -14,8 +14,8 @@ def test_deploy_root_gauge(
     web3,
 ):
     proxy_init_code = vyper_proxy_init_code(root_gauge_impl.address)
-    salt = abi.encode_single(
-        "(uint256,address,bytes32)", [chain.id, alice.address, (0).to_bytes(32, "big")]
+    salt = encode(
+        ["(uint256,address,bytes32)"], [(chain.id, alice.address, (0).to_bytes(32, "big"))]
     )
     expected = create2_address_of(root_gauge_factory.address, web3.keccak(salt), proxy_init_code)
 
