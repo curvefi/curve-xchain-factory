@@ -27,8 +27,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v1
 
-      - name: Install Hardhat
-        run: npm install --save-dev hardhat
+      - name: Install Ganache
+        run: npm install
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v2
@@ -37,9 +37,6 @@ jobs:
 
       - name: Install Requirements
         run: pip install -r requirements.txt
-
-      - name: Run node
-        run: npx hardhat node
 
       - name: Run Tests
         run: brownie test -x --ignore=tests/forked/
