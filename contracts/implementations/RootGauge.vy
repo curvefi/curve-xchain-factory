@@ -106,7 +106,7 @@ def integrate_fraction(_user: address) -> uint256:
 def user_checkpoint(_user: address) -> bool:
     """
     @notice Checkpoint the gauge updating total emissions
-    @param _user Vestigal parameter with no impact on the function
+    @param _user Vestigial parameter with no impact on the function
     """
     # the last period we calculated emissions up to (but not including)
     last_period: uint256 = self.last_period
@@ -174,7 +174,7 @@ def set_killed(_is_killed: bool):
 def update_bridger():
     """
     @notice Update the bridger used by this contract
-    @dev Bridger contracts should prevent briding if ever updated
+    @dev Bridger contracts should prevent bridging if ever updated
     """
     # reset approval
     bridger: address = Factory(self.factory).get_bridger(self.chain_id)
