@@ -1,6 +1,7 @@
-# @version 0.3.1
+# @version 0.3.7
 """
 @title Curve Optimism Bridge Wrapper
+@notice L1 -> L2
 """
 from vyper.interfaces import ERC20
 
@@ -15,41 +16,50 @@ event TransferOwnership:
     _new_owner: address
 
 
-CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-L2_CRV20: constant(address) = 0x0994206dfE8De6Ec6920FF4D779B0d950605Fb53
-OPTIMISM_L1_BRIDGE: constant(address) = 0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1
+CRV20: immutable(ERC20)
+L2_CRV20: immutable(address)
+OPTIMISM_L1_BRIDGE: immutable(address)
 
 
 # l1_token -> l2_token
-l2_token: public(HashMap[address, address])
+l2_token: public(HashMap[ERC20, address])
 
 owner: public(address)
 future_owner: public(address)
 
 
 @external
-def __init__():
-    assert ERC20(CRV20).approve(OPTIMISM_L1_BRIDGE, MAX_UINT256)
+def __init__(_l2_crv: address, _optimism_l1_bridge: address):
+    CRV20 = ERC20(0xD533a949740bb3306d119CC777fa900bA034cd52)
+    L2_CRV20 = _l2_crv
+    OPTIMISM_L1_BRIDGE = _optimism_l1_bridge
+
+    CRV20.approve(_optimism_l1_bridge, max_value(uint256))
     self.l2_token[CRV20] = L2_CRV20
 
     self.owner = msg.sender
-    log TransferOwnership(ZERO_ADDRESS, msg.sender)
+    log TransferOwnership(empty(address), msg.sender)
 
 
 @external
-def bridge(_token: address, _to: address, _amount: uint256):
+def bridge(_token: ERC20, _to: address, _amount: uint256, _min_amount: uint256=0):
     """
     @notice Bridge a token to Optimism mainnet using the L1 Standard Bridge
     @param _token The token to bridge
     @param _to The address to deposit the token to on L2
-    @param _amount The amount of the token to deposit
+    @param _amount The amount of the token to deposit, 2^256-1 for the whole balance
+    @param _min_amount Minimum amount to bridge
     """
-    assert ERC20(_token).transferFrom(msg.sender, self, _amount)
+    amount: uint256 = _amount
+    if amount == max_value(uint256):
+        amount = _token.balanceOf(msg.sender)
+    assert amount >= _min_amount
+    assert _token.transferFrom(msg.sender, self, amount, default_return_value=True)
 
     l2_token: address = L2_CRV20
     if _token != CRV20:
         l2_token = self.l2_token[_token]
-        assert l2_token != ZERO_ADDRESS  # dev: token not mapped
+        assert l2_token != empty(address)  # dev: token not mapped
 
     raw_call(
         OPTIMISM_L1_BRIDGE,
@@ -57,7 +67,7 @@ def bridge(_token: address, _to: address, _amount: uint256):
             _token,
             l2_token,
             _to,
-            _amount,
+            amount,
             convert(200_000, uint256),
             b"",
             method_id=method_id("depositERC20To(address,address,address,uint256,uint32,bytes)")
@@ -85,7 +95,7 @@ def cost() -> uint256:
 
 
 @external
-def set_l2_token(_l1_token: address, _l2_token: address):
+def set_l2_token(_l1_token: ERC20, _l2_token: address):
     """
     @notice Set the mapping of L1 token -> L2 token for depositing
     @param _l1_token The l1 token address
@@ -95,11 +105,11 @@ def set_l2_token(_l1_token: address, _l2_token: address):
     assert _l1_token != CRV20  # dev: cannot reset mapping for CRV20
 
     amount: uint256 = 0
-    if _l2_token != ZERO_ADDRESS:
-        amount = MAX_UINT256
-    assert ERC20(_l1_token).approve(OPTIMISM_L1_BRIDGE, amount)
+    if _l2_token != empty(address):
+        amount = max_value(uint256)
+    assert _l1_token.approve(OPTIMISM_L1_BRIDGE, amount)
 
-    log UpdateTokenMapping(_l1_token, self.l2_token[_l1_token], _l2_token)
+    log UpdateTokenMapping(_l1_token.address, self.l2_token[_l1_token], _l2_token)
     self.l2_token[_l1_token] = _l2_token
 
 
