@@ -133,7 +133,7 @@ def test_set_killed_reverts_for_unauthorised_users(
             root_gauge_factory_proxy.set_killed(root_gauge, True, {"from": unauthorised_acct})
 
 
-def test_set_bridger_success_for_authorised_users(
+def test_set_child_success_for_authorised_users(
     root_gauge_factory,
     root_gauge_factory_proxy,
     chain,
@@ -143,14 +143,16 @@ def test_set_bridger_success_for_authorised_users(
 
     manager = root_gauge_factory_proxy.manager()
     for acct in [manager, default_owner]:
-        root_gauge_factory_proxy.set_bridger(
-            root_gauge_factory, chain.id, ETH_ADDRESS, {"from": acct}
+        root_gauge_factory_proxy.set_child(
+            root_gauge_factory, chain.id, ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS, {"from": acct}
         )
         assert root_gauge_factory.get_bridger(chain.id) == ETH_ADDRESS
+        assert root_gauge_factory.get_child_factory(chain.id) == ETH_ADDRESS
+        assert root_gauge_factory.get_child_implementation(chain.id) == ETH_ADDRESS
         chain.undo()
 
 
-def test_set_bridger_revert_for_unauthorised_users(
+def test_set_child_revert_for_unauthorised_users(
     bob,
     charlie,
     root_gauge_factory,
@@ -162,8 +164,8 @@ def test_set_bridger_revert_for_unauthorised_users(
 
     for acct in [bob, charlie, default_e_admin]:
         with brownie.reverts():
-            root_gauge_factory_proxy.set_bridger(
-                root_gauge_factory, chain.id, ETH_ADDRESS, {"from": acct}
+            root_gauge_factory_proxy.set_child(
+                root_gauge_factory, chain.id, ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS, {"from": acct}
             )
 
 

@@ -9,7 +9,7 @@
 interface Factory:
     def accept_transfer_ownership(): nonpayable
     def commit_transfer_ownership(_future_owner: address): nonpayable
-    def set_bridger(_chain_id: uint256, _bridger: address): nonpayable
+    def set_child(_chain_id: uint256, _bridger: address, _child_factory: address, _child_impl: address): nonpayable
     def set_call_proxy(_new_call_proxy: address): nonpayable
     def set_implementation(_implementation: address): nonpayable
 
@@ -90,29 +90,29 @@ def set_manager(_new_manager: address):
 
 @external
 @nonreentrant('lock')
-def commit_transfer_ownership(_factory: address, _new_owner: address):
+def commit_transfer_ownership(_factory: Factory, _new_owner: address):
     """
     @notice Transfer ownership for factory `_factory` to `new_owner`
     @param _factory Factory which ownership is to be transferred
     @param _new_owner New factory owner address
     """
     assert msg.sender == self.ownership_admin, "Access denied"
-    Factory(_factory).commit_transfer_ownership(_new_owner)
+    _factory.commit_transfer_ownership(_new_owner)
 
 
 @external
 @nonreentrant('lock')
-def accept_transfer_ownership(_factory: address):
+def accept_transfer_ownership(_factory: Factory):
     """
     @notice Apply transferring ownership of `_factory`
     @param _factory Factory address
     """
-    Factory(_factory).accept_transfer_ownership()
+    _factory.accept_transfer_ownership()
 
 
 @external
 @nonreentrant('lock')
-def set_killed(_gauge: address, _is_killed: bool):
+def set_killed(_gauge: LiquidityGauge, _is_killed: bool):
     """
     @notice Set the killed status for `_gauge`
     @dev When killed, the gauge always yields a rate of 0 and so cannot mint CRV
@@ -121,37 +121,37 @@ def set_killed(_gauge: address, _is_killed: bool):
     """
     assert msg.sender in [self.ownership_admin, self.emergency_admin], "Access denied"
 
-    LiquidityGauge(_gauge).set_killed(_is_killed)
+    _gauge.set_killed(_is_killed)
 
 
 @external
 @nonreentrant('lock')
-def set_bridger(_factory: address, _chain_id: uint256, _bridger: address):
+def set_child(_factory: Factory, _chain_id: uint256, _bridger: address, _child_factory: address, _child_impl: address):
     """
-    @notice Set the bridger used for `_chain_id` on `_factory`
+    @notice Set contracts used for `_chain_id` on `_factory`
     """
     assert msg.sender in [self.ownership_admin, self.manager]
 
-    Factory(_factory).set_bridger(_chain_id, _bridger)
+    _factory.set_child(_chain_id, _bridger, _child_factory, _child_impl)
 
 
 @external
 @nonreentrant('lock')
-def set_implementation(_factory: address, _implementation: address):
+def set_implementation(_factory: Factory, _implementation: address):
     """
     @notice Set the gauge implementation used by `_factory`
     """
     assert msg.sender in [self.ownership_admin, self.manager]
 
-    Factory(_factory).set_implementation(_implementation)
+    _factory.set_implementation(_implementation)
 
 
 @external
 @nonreentrant('lock')
-def set_call_proxy(_factory: address, _new_call_proxy: address):
+def set_call_proxy(_factory: Factory, _new_call_proxy: address):
     """
     @notice Set the call proxy messenger used by `_factory`
     """
     assert msg.sender in [self.ownership_admin, self.manager]
 
-    Factory(_factory).set_call_proxy(_new_call_proxy)
+    _factory.set_call_proxy(_new_call_proxy)
