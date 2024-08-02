@@ -5,6 +5,7 @@ This is due to the fact that future emissions will automatically be bridged as u
 the child chain. But when a gauge first begins ... no users will call mint, since there
 is nothing to mint.
 """
+
 from inspect import unwrap
 from itertools import compress
 

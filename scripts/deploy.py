@@ -1,8 +1,8 @@
 from brownie import (
-    RootGauge,
-    ChildGauge,
     ZERO_ADDRESS,
+    ChildGauge,
     ChildGaugeFactory,
+    RootGauge,
     RootGaugeFactory,
     RootGaugeFactoryProxy,
     accounts,

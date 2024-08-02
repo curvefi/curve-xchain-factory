@@ -19,10 +19,12 @@ def child_crv_token(alice):
 
 
 @pytest.fixture(scope="module")
-def child_gauge_factory(alice, anycall, root_gauge_factory, root_gauge_impl, child_crv_token,
-                        ChildGaugeFactory):
-    factory = ChildGaugeFactory.deploy(anycall, root_gauge_factory, root_gauge_impl,
-                                       child_crv_token, alice, {"from": alice})
+def child_gauge_factory(
+    alice, anycall, root_gauge_factory, root_gauge_impl, child_crv_token, ChildGaugeFactory
+):
+    factory = ChildGaugeFactory.deploy(
+        anycall, root_gauge_factory, root_gauge_impl, child_crv_token, alice, {"from": alice}
+    )
     anycall.setWhitelist(factory, factory, 1, True, {"from": alice})
     return factory
 
@@ -138,7 +140,9 @@ def root_gauge_factory_proxy(alice, RootGaugeFactoryProxy):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def set_child_factory(chain, root_gauge_factory, mock_bridger, child_gauge_factory,
-                      child_gauge_impl, alice):
-    root_gauge_factory.set_child(chain.id, mock_bridger, child_gauge_factory, child_gauge_impl,
-                                 {"from": alice})
+def set_child_factory(
+    chain, root_gauge_factory, mock_bridger, child_gauge_factory, child_gauge_impl, alice
+):
+    root_gauge_factory.set_child(
+        chain.id, mock_bridger, child_gauge_factory, child_gauge_impl, {"from": alice}
+    )

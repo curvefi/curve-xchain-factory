@@ -104,9 +104,7 @@ def test_optimism_bridger(alice, crv_token, OptimismBridger):
         bridger.bridge(
             crv_token, alice, 2**256 - 1, 10**18, {"from": alice, "value": bridger.cost()}
         )
-    bridger.bridge(
-        crv_token, alice, 2**256 - 1, 10**17, {"from": alice, "value": bridger.cost()}
-    )
+    bridger.bridge(crv_token, alice, 2**256 - 1, 10**17, {"from": alice, "value": bridger.cost()})
 
     assert crv_token.balanceOf(optimism_bridge) == balance_before + 10**18
 

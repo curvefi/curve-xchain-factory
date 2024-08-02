@@ -169,13 +169,22 @@ def test_set_child_revert_for_unauthorised_users(
             )
 
 
-def test_set_child_gauge_success_for_authorised_users(root_gauge_factory_proxy, root_gauge, transfer_factory_ownership_to_proxy):
+def test_set_child_gauge_success_for_authorised_users(
+    root_gauge_factory_proxy, root_gauge, transfer_factory_ownership_to_proxy
+):
     owner = root_gauge_factory_proxy.ownership_admin()
     root_gauge_factory_proxy.set_child_gauge(root_gauge, owner, {"from": owner})
     assert root_gauge.child_gauge() == owner
 
 
-def test_set_child_gauge_revert_for_unauthorised_users(root_gauge_factory_proxy, root_gauge, bob, charlie, default_e_admin, transfer_factory_ownership_to_proxy):
+def test_set_child_gauge_revert_for_unauthorised_users(
+    root_gauge_factory_proxy,
+    root_gauge,
+    bob,
+    charlie,
+    default_e_admin,
+    transfer_factory_ownership_to_proxy,
+):
     for acct in [bob, charlie, default_e_admin]:
         with brownie.reverts():
             root_gauge.set_child_gauge(acct, {"from": acct})

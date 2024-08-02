@@ -17,7 +17,8 @@ def zksync_create2_address_of(_addr, _salt, _initcode):
     salt = HexBytes(_salt)
     initcode = HexBytes(_initcode)
     return to_address(
-        web3.keccak(prefix + addr + salt + web3.keccak(initcode) + web3.keccak(b""))[12:])
+        web3.keccak(prefix + addr + salt + web3.keccak(initcode) + web3.keccak(b""))[12:]
+    )
 
 
 def test_gauge_address(
@@ -33,13 +34,13 @@ def test_gauge_address(
     create2_address_of,
 ):
     child = Contract.from_abi(
-        "Child",
-        child_gauge_factory.deploy_gauge(lp_token, SALT).return_value,
-        abi=ChildGauge.abi)
+        "Child", child_gauge_factory.deploy_gauge(lp_token, SALT).return_value, abi=ChildGauge.abi
+    )
     root = Contract.from_abi(
         "Root",
         root_gauge_factory.deploy_gauge(chain.id, SALT, {"from": alice}).return_value,
-        abi=RootGauge.abi)
+        abi=RootGauge.abi,
+    )
 
     assert child.root_gauge() == root, "Bad root gauge calculation"
     assert root.child_gauge() == child, "Bad child gauge calculation"
@@ -61,13 +62,16 @@ def test_gauge_address_chain_id(
     chain_id = chain.id + 1
     proxy_init_code = vyper_proxy_init_code(child_gauge_impl.address)
     expected = create2_address_of(
-        child_gauge_factory.address, salt(chain_id, alice.address), proxy_init_code)
+        child_gauge_factory.address, salt(chain_id, alice.address), proxy_init_code
+    )
     bridger = MockBridger.deploy({"from": alice})
-    root_gauge_factory.set_child(chain_id, bridger, child_gauge_factory, child_gauge_impl,
-                                 {"from": alice})
+    root_gauge_factory.set_child(
+        chain_id, bridger, child_gauge_factory, child_gauge_impl, {"from": alice}
+    )
     root = Contract.from_abi(
         "Root",
         root_gauge_factory.deploy_gauge(chain.id + 1, SALT, {"from": alice}).return_value,
-        abi=RootGauge.abi)
+        abi=RootGauge.abi,
+    )
 
     assert root.child_gauge() == expected, "Bad child gauge calculation"

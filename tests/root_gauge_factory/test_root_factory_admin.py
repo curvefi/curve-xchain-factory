@@ -16,8 +16,9 @@ def test_set_implementation_guarded(bob, root_gauge_factory):
 
 
 def test_set_child(alice, chain, root_gauge_factory):
-    tx = root_gauge_factory.set_child(chain.id, ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS,
-                                      {"from": alice})
+    tx = root_gauge_factory.set_child(
+        chain.id, ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS, {"from": alice}
+    )
 
     assert root_gauge_factory.get_bridger(chain.id) == ETH_ADDRESS
     assert root_gauge_factory.get_child_factory(chain.id) == ETH_ADDRESS

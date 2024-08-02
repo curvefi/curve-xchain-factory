@@ -57,8 +57,9 @@ def test_emissions_against_expected(alice, root_gauge_controller, root_gauge, ro
             assert rate == root_crv_token.rate()
 
 
-def test_transmit(alice, root_gauge, child_gauge, root_gauge_controller, mock_bridger,
-                  root_crv_token):
+def test_transmit(
+    alice, root_gauge, child_gauge, root_gauge_controller, mock_bridger, root_crv_token
+):
     root_gauge_controller.add_type("Test", 10**18, {"from": alice})
     root_gauge_controller.add_gauge(root_gauge, 0, 10**18, {"from": alice})
 
