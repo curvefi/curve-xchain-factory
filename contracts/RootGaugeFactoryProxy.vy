@@ -12,6 +12,7 @@ interface Factory:
     def accept_transfer_ownership(): nonpayable
     def commit_transfer_ownership(_future_owner: address): nonpayable
     def set_child(_chain_id: uint256, _bridger: address, _child_factory: address, _child_impl: address): nonpayable
+    def set_bridger(_chain_id: uint256, _bridger: address): nonpayable
     def set_call_proxy(_new_call_proxy: address): nonpayable
     def set_implementation(_implementation: address): nonpayable
 
@@ -144,6 +145,16 @@ def set_child(_factory: Factory, _chain_id: uint256, _bridger: address, _child_f
     assert msg.sender in [self.ownership_admin, self.manager]
 
     _factory.set_child(_chain_id, _bridger, _child_factory, _child_impl)
+
+
+@external
+def set_bridger(_factory: Factory, _chain_id: uint256, _bridger: address):
+    """
+    @notice Set the bridger used for `_chain_id` on `_factory`, for older implementation
+    """
+    assert msg.sender in [self.ownership_admin, self.manager]
+
+    _factory.set_bridger(_chain_id, _bridger)
 
 
 @external
