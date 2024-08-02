@@ -71,39 +71,3 @@ def test_gauge_address_chain_id(
         abi=RootGauge.abi)
 
     assert root.child_gauge() == expected, "Bad child gauge calculation"
-
-
-def test_gauge_address_zksync(
-    alice,
-    root_gauge_factory,
-    child_gauge_factory,
-    lp_token,
-    child_gauge_impl,
-    MockBridger,
-    RootGauge,
-    vyper_proxy_init_code,
-):
-    chain_id = 324
-    bridger = MockBridger.deploy({"from": alice})
-    # root_gauge_factory.set_child(chain_id, bridger, child_gauge_factory, child_gauge_impl,
-    #                              {"from": alice})
-    # root = Contract.from_abi(
-    #     "Root",
-    #     root_gauge_factory.deploy_gauge(chain_id, SALT, {"from": alice}).return_value,
-    #     abi=RootGauge.abi)
-    #
-    # proxy_init_code = vyper_proxy_init_code(child_gauge_impl.address)
-    # assert root.child_gauge() == zksync_create2_address_of(
-    #     child_gauge_factory.address, salt(chain_id, alice.address), proxy_init_code
-    # ), "Bad child gauge calculation"
-
-    root_gauge_factory.set_child(chain_id, bridger,
-                                 "0x6d8Df1f19D0aF1da159D995F4cAE21bE035643AD",  # ChildFactory
-                                 "0xB66Ab9661Ca10115c75e6496410752587216F958",  # ChildGauge implementation
-                                 {"from": alice})
-    root = Contract.from_abi(
-      "Root",
-      root_gauge_factory.deploy_gauge(chain_id, SALT, {"from": "0x71F718D3e4d1449D1502A6A7595eb84eBcCB1683"}).return_value,
-      abi=RootGauge.abi)
-
-    assert root.child_gauge() == "0x131f7692cc852A80cc2e79014F694D5FE933e434", "Bad child gauge calculation"

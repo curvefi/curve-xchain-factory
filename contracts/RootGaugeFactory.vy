@@ -1,9 +1,11 @@
-# @version 0.3.7
+# pragma version 0.3.7
 """
 @title Root Liquidity Gauge Factory
 @license MIT
 @author Curve Finance
 """
+
+version: public(constant(String[8])) = "1.0.1"
 
 
 interface Bridger:
@@ -55,8 +57,6 @@ get_gauge: public(HashMap[uint256, RootGauge[max_value(uint256)]])
 get_gauge_count: public(HashMap[uint256, uint256])
 is_valid_gauge: public(HashMap[RootGauge, bool])
 
-zksync_reached_parity: public(bool)
-
 owner: public(address)
 future_owner: public(address)
 
@@ -87,56 +87,19 @@ def transmit_emissions(_gauge: RootGauge):
 
 @internal
 def _get_child(_chain_id: uint256, salt: bytes32) -> address:
+    """
+    @dev zkSync address derivation is ignored, so need to set child address through a vote manually
+    """
     child_factory: address = self.get_child_factory[_chain_id]
     child_impl: bytes20 = convert(self.get_child_implementation[_chain_id], bytes20)
+
     assert child_factory != empty(address)  # dev: child factory not set
     assert child_impl != empty(bytes20)  # dev: child implementation not set
-    digest: bytes32 = empty(bytes32)
-    gauge_codehash: bytes32 = keccak256(concat(0x602d3d8160093d39f3363d3d373d3d3d363d73, child_impl, 0x5af43d82803e903d91602b57fd5bf3))
-    if _chain_id in [324, 300] and not self.zksync_reached_parity:  # zkSync
-        gauge_codehash = keccak256(concat(0x00000000000000000000602d3d8160093d39f3363d3d373d3d3d363d73, child_impl, 0x5af43d82803e903d91602b57fd5bf3))
-        digest = keccak256(concat(
-                keccak256("zksyncCreate2"),
-                convert(child_factory, bytes32),
-                salt,
-                gauge_codehash,  # bytecodeHash
-                keccak256(b""),  # inputHash
-        ))
-    else:
-        digest = keccak256(concat(0xFF, convert(child_factory, bytes20), salt, gauge_codehash))
+
+    gauge_codehash: bytes32 = keccak256(
+        concat(0x602d3d8160093d39f3363d3d373d3d3d363d73, child_impl, 0x5af43d82803e903d91602b57fd5bf3))
+    digest: bytes32 = keccak256(concat(0xFF, convert(child_factory, bytes20), salt, gauge_codehash))
     return convert(convert(digest, uint256) & convert(max_value(uint160), uint256), address)
-# @version 0.3.9
-
-interface CreateAddress:
-    def compute_address(salt: bytes32, bytecode_hash: bytes32, deployer: address, input: Bytes[4096]) -> address: pure
-
-interface CreateNewAddress:
-    def create2(_salt: bytes32, _bytecode_hash: Bytes[266]): nonpayable
-
-
-_CREATE2_PREFIX: constant(bytes32) = 0x2020dba91b30cc0006188af794c2fb30dd8520db7e2c088b7fc7c103c00ca494
-FACTORY: constant(address) = 0x0000000000000000000000000000000000008006
-
-
-@external
-@pure
-def compute_address(salt: bytes32, bytecode_hash: bytes32, deployer: address, input: Bytes[4_096]=b"") -> address:
-
-    constructor_input_hash: bytes32 = keccak256(input)
-    data: bytes32 = keccak256(concat(_CREATE2_PREFIX, empty(bytes12), convert(deployer, bytes20), salt, bytecode_hash, constructor_input_hash))
-
-    return convert(convert(data, uint256) & convert(max_value(uint160), uint256), address)
-
-
-@view
-@external
-def compute_address_self(salt: bytes32, bytecode_hash: bytes32, deployer: address, input: Bytes[4096]) -> address:
-    return CreateAddress(self).compute_address(salt, bytecode_hash, deployer, input)
-
-
-@external
-def deploy_contract(_salt: bytes32, _bytecode_hash: Bytes[266]):
-    CreateNewAddress(FACTORY).create2(_salt, _bytecode_hash)
 
 
 @payable
@@ -216,17 +179,6 @@ def set_implementation(_implementation: address):
 
     log UpdateImplementation(self.get_implementation, _implementation)
     self.get_implementation = _implementation
-
-
-@external
-def set_zksync_reached_parity(_zksync_reached_parity: bool):
-    """
-    @notice Update if zkSync reached parity with Ethereum on address derivation (create2)
-    @param _zksync_reached_parity True if address derivation is save for Ethereum and zkSync
-    """
-    assert msg.sender == self.owner
-
-    self.zksync_reached_parity = _zksync_reached_parity
 
 
 @external

@@ -1,9 +1,11 @@
-# @version 0.3.3
+# pragma version 0.3.7
 """
 @title Root Gauge Factory Proxy Owner
 @license MIT
 @author CurveFi
 """
+
+version: public(constant(String[8])) = "1.0.1"
 
 
 interface Factory:
@@ -15,6 +17,7 @@ interface Factory:
 
 interface LiquidityGauge:
     def set_killed(_killed: bool): nonpayable
+    def set_child_gauge(_child: address): nonpayable
 
 
 event CommitAdmins:
@@ -89,7 +92,6 @@ def set_manager(_new_manager: address):
 
 
 @external
-@nonreentrant('lock')
 def commit_transfer_ownership(_factory: Factory, _new_owner: address):
     """
     @notice Transfer ownership for factory `_factory` to `new_owner`
@@ -101,7 +103,6 @@ def commit_transfer_ownership(_factory: Factory, _new_owner: address):
 
 
 @external
-@nonreentrant('lock')
 def accept_transfer_ownership(_factory: Factory):
     """
     @notice Apply transferring ownership of `_factory`
@@ -111,7 +112,18 @@ def accept_transfer_ownership(_factory: Factory):
 
 
 @external
-@nonreentrant('lock')
+def set_child_gauge(_root: LiquidityGauge, _child: address):
+    """
+    @notice Set child gauge address to bridge coins to
+    @param _root Root gauge address
+    @param _child Child gauge address
+    """
+    assert msg.sender == self.ownership_admin, "Access denied"
+
+    _root.set_child_gauge(_child)
+
+
+@external
 def set_killed(_gauge: LiquidityGauge, _is_killed: bool):
     """
     @notice Set the killed status for `_gauge`
@@ -125,7 +137,6 @@ def set_killed(_gauge: LiquidityGauge, _is_killed: bool):
 
 
 @external
-@nonreentrant('lock')
 def set_child(_factory: Factory, _chain_id: uint256, _bridger: address, _child_factory: address, _child_impl: address):
     """
     @notice Set contracts used for `_chain_id` on `_factory`
@@ -136,7 +147,6 @@ def set_child(_factory: Factory, _chain_id: uint256, _bridger: address, _child_f
 
 
 @external
-@nonreentrant('lock')
 def set_implementation(_factory: Factory, _implementation: address):
     """
     @notice Set the gauge implementation used by `_factory`
@@ -147,7 +157,6 @@ def set_implementation(_factory: Factory, _implementation: address):
 
 
 @external
-@nonreentrant('lock')
 def set_call_proxy(_factory: Factory, _new_call_proxy: address):
     """
     @notice Set the call proxy messenger used by `_factory`

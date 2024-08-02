@@ -1,9 +1,11 @@
-# @version 0.3.7
+# pragma version 0.3.7
 """
 @title Root Liquidity Gauge Implementation
 @license MIT
 @author Curve Finance
 """
+
+version: public(constant(String[8])) = "1.0.1"
 
 interface CRV20:
     def rate() -> uint256: view
@@ -184,7 +186,7 @@ def update_bridger():
 @external
 def set_child_gauge(_child: address):
     """
-    @notice Set Child contract in case something went wrong (e.g. between implementation updates)
+    @notice Set Child contract in case something went wrong (e.g. between implementation updates or zkSync)
     @param _child Child gauge to set
     """
     assert msg.sender == self.factory.owner()
