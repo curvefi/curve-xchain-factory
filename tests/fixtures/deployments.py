@@ -47,7 +47,7 @@ def unauthorised_token(alice):
 
 @pytest.fixture(scope="module")
 def child_gauge_impl(alice, child_crv_token, ChildGauge, child_gauge_factory):
-    impl = ChildGauge.deploy(child_crv_token, child_gauge_factory, {"from": alice})
+    impl = ChildGauge.deploy(child_gauge_factory, {"from": alice})
     child_gauge_factory.set_implementation(impl, {"from": alice})
     return impl
 

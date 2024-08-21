@@ -1,9 +1,14 @@
-# @version 0.3.7
+# pragma version 0.3.7
 """
-@title Child Liquidity Gauge
-@license MIT
-@author Curve Finance
+@title CurveXChainLiquidityGauge
+@license Copyright (c) Curve.Fi, 2020-2024 - all rights reserved
+@author Curve.Fi
+@notice Layer2/Cross-Chain Gauge
 """
+
+version: public(constant(String[8])) = "0.2.1"
+
+
 from vyper.interfaces import ERC20
 
 implements: ERC20
@@ -16,6 +21,7 @@ interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
     def minted(_user: address, _gauge: address) -> uint256: view
+    def crv() -> ERC20: view
 
 interface ERC1271:
     def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
@@ -62,10 +68,8 @@ ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e0000000000000000000000000000000
 MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 86400 * 7
-VERSION: constant(String[8]) = "v0.1.0"
 
 
-CRV: immutable(address)
 FACTORY: immutable(Factory)
 
 
@@ -112,10 +116,9 @@ root_gauge: public(address)
 
 
 @external
-def __init__(_crv_token: address, _factory: Factory):
+def __init__(_factory: Factory):
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
-    CRV = _crv_token
     FACTORY = _factory
 
 
@@ -150,11 +153,14 @@ def _checkpoint(_user: address):
             week_time = min(week_time + WEEK, block.timestamp)
 
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
-    crv_balance: uint256 = ERC20(CRV).balanceOf(self)
+    crv_balance: uint256 = 0
+    crv: ERC20 = FACTORY.crv()
+    if crv != empty(ERC20):
+        crv_balance = crv.balanceOf(self)
     if crv_balance != 0:
         current_week: uint256 = block.timestamp / WEEK
         self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
-        ERC20(CRV).transfer(FACTORY.address, crv_balance)
+        crv.transfer(FACTORY.address, crv_balance)
 
     period += 1
     self.period = period
@@ -238,17 +244,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
             if total_claimable > 0:
                 total_claimed: uint256 = claim_data % 2**128
                 if _claim:
-                    response: Bytes[32] = raw_call(
-                        token,
-                        _abi_encode(
-                            receiver,
-                            total_claimable,
-                            method_id=method_id("transfer(address,uint256)")
-                        ),
-                        max_outsize=32,
-                    )
-                    if len(response) != 0:
-                        assert convert(response, bool)
+                    assert ERC20(token).transfer(receiver, total_claimable, default_return_value=True)
                     self.claim_data[_user][token] = total_claimed + total_claimable
                 elif new_claimable > 0:
                     self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
@@ -590,18 +586,7 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
 
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    response: Bytes[32] = raw_call(
-        _reward_token,
-        _abi_encode(
-            msg.sender,
-            self,
-            _amount,
-            method_id=method_id("transferFrom(address,address,uint256)")
-        ),
-        max_outsize=32,
-    )
-    if len(response) != 0:
-        assert convert(response, bool)
+    assert ERC20(_reward_token).transferFrom(msg.sender, self, _amount, default_return_value=True)
 
     period_finish: uint256 = self.reward_data[_reward_token].period_finish
     if block.timestamp >= period_finish:
@@ -670,14 +655,14 @@ def integrate_checkpoint() -> uint256:
 
 @view
 @external
-def version() -> String[8]:
-    return VERSION
+def factory() -> Factory:
+    return FACTORY
 
 
 @view
 @external
-def factory() -> Factory:
-    return FACTORY
+def VERSION() -> String[8]:
+    return version
 
 
 @external
@@ -701,7 +686,7 @@ def initialize(_lp_token: address, _root: address, _manager: address):
         _abi_encode(
             DOMAIN_TYPE_HASH,
             keccak256(name),
-            keccak256(VERSION),
+            keccak256(version),
             chain.id,
             self
         )
