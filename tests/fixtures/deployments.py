@@ -19,8 +19,12 @@ def child_crv_token(alice):
 
 
 @pytest.fixture(scope="module")
-def child_gauge_factory(alice, anycall, child_crv_token, ChildGaugeFactory):
-    factory = ChildGaugeFactory.deploy(anycall, child_crv_token, alice, {"from": alice})
+def child_gauge_factory(
+    alice, anycall, root_gauge_factory, root_gauge_impl, child_crv_token, ChildGaugeFactory
+):
+    factory = ChildGaugeFactory.deploy(
+        anycall, root_gauge_factory, root_gauge_impl, child_crv_token, alice, {"from": alice}
+    )
     anycall.setWhitelist(factory, factory, 1, True, {"from": alice})
     return factory
 
@@ -43,7 +47,7 @@ def unauthorised_token(alice):
 
 @pytest.fixture(scope="module")
 def child_gauge_impl(alice, child_crv_token, ChildGauge, child_gauge_factory):
-    impl = ChildGauge.deploy(child_crv_token, child_gauge_factory, {"from": alice})
+    impl = ChildGauge.deploy(child_gauge_factory, {"from": alice})
     child_gauge_factory.set_implementation(impl, {"from": alice})
     return impl
 
@@ -105,10 +109,8 @@ def root_gauge_factory(alice, anycall, chain, RootGaugeFactory):
 
 
 @pytest.fixture(scope="module")
-def mock_bridger(alice, chain, root_gauge_factory, MockBridger):
-    bridger = MockBridger.deploy({"from": alice})
-    root_gauge_factory.set_bridger(chain.id, bridger, {"from": alice})
-    return bridger
+def mock_bridger(alice, MockBridger):
+    return MockBridger.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
@@ -135,3 +137,12 @@ def root_gauge(alice, chain, root_gauge_factory, root_gauge_impl, RootGauge):
 @pytest.fixture(scope="module")
 def root_gauge_factory_proxy(alice, RootGaugeFactoryProxy):
     return RootGaugeFactoryProxy.deploy({"from": alice})
+
+
+@pytest.fixture(scope="module", autouse=True)
+def set_child_factory(
+    chain, root_gauge_factory, mock_bridger, child_gauge_factory, child_gauge_impl, alice
+):
+    root_gauge_factory.set_child(
+        chain.id, mock_bridger, child_gauge_factory, child_gauge_impl, {"from": alice}
+    )

@@ -1,13 +1,17 @@
-# @version 0.3.1
+# @version 0.3.7
 """
 @title Child Liquidity Gauge Factory
 @license MIT
 @author Curve Finance
 """
 
+version: public(constant(String[8])) = "2.0.0"
+
+
+from vyper.interfaces import ERC20
 
 interface ChildGauge:
-    def initialize(_lp_token: address, _manager: address): nonpayable
+    def initialize(_lp_token: address, _root: address, _manager: address): nonpayable
     def integrate_fraction(_user: address) -> uint256: view
     def user_checkpoint(_user: address) -> bool: nonpayable
 
@@ -53,7 +57,7 @@ event TransferOwnership:
 WEEK: constant(uint256) = 86400 * 7
 
 
-CRV: immutable(address)
+crv: public(ERC20)
 
 
 get_implementation: public(address)
@@ -62,6 +66,8 @@ voting_escrow: public(address)
 owner: public(address)
 future_owner: public(address)
 
+root_factory: public(address)
+root_implementation: bytes20
 call_proxy: public(address)
 # [last_request][has_counterpart][is_valid_gauge]
 gauge_data: public(HashMap[address, uint256])
@@ -70,18 +76,30 @@ minted: public(HashMap[address, HashMap[address, uint256]])
 
 get_gauge_from_lp_token: public(HashMap[address, address])
 get_gauge_count: public(uint256)
-get_gauge: public(address[MAX_INT128])
+get_gauge: public(address[max_value(int128)])
 
 
 @external
-def __init__(_call_proxy: address, _crv: address, _owner: address):
-    CRV = _crv
+def __init__(_call_proxy: address, _root_factory: address, _root_impl: address, _crv: address, _owner: address):
+    """
+    @param _call_proxy Contract for
+    @param _root_factory Root factory to anchor to
+    @param _root_impl Address of root gauge implementation to calculate mirror (can be updated)
+    @param _crv Bridged CRV token address (might be zero if not known yet)
+    @param _owner Owner of factory (xgov)
+    """
+    self.crv = ERC20(_crv)
 
     self.call_proxy = _call_proxy
-    log UpdateCallProxy(ZERO_ADDRESS, _call_proxy)
+    log UpdateCallProxy(empty(address), _call_proxy)
+
+    assert _root_factory != empty(address)
+    assert _root_impl != empty(address)
+    self.root_factory = _root_factory
+    self.root_implementation = convert(_root_impl, bytes20)
 
     self.owner = _owner
-    log TransferOwnership(ZERO_ADDRESS, _owner)
+    log TransferOwnership(empty(address), _owner)
 
 
 @internal
@@ -94,7 +112,7 @@ def _psuedo_mint(_gauge: address, _user: address):
         CallProxy(self.call_proxy).anyCall(
             self,
             _abi_encode(_gauge, method_id=method_id("transmit_emissions(address)")),
-            ZERO_ADDRESS,
+            empty(address),
             1,
         )
         # update last request time
@@ -104,15 +122,8 @@ def _psuedo_mint(_gauge: address, _user: address):
     total_mint: uint256 = ChildGauge(_gauge).integrate_fraction(_user)
     to_mint: uint256 = total_mint - self.minted[_user][_gauge]
 
-    if to_mint != 0:
-        # transfer tokens to user
-        response: Bytes[32] = raw_call(
-            CRV,
-            _abi_encode(_user, to_mint, method_id=method_id("transfer(address,uint256)")),
-            max_outsize=32,
-        )
-        if len(response) != 0:
-            assert convert(response, bool)
+    if to_mint != 0 and self.crv != empty(ERC20):
+        assert self.crv.transfer(_user, to_mint, default_return_value=True)
         self.minted[_user][_gauge] = total_mint
 
         log Minted(_user, _gauge, total_mint)
@@ -136,7 +147,7 @@ def mint_many(_gauges: address[32]):
     @param _gauges List of `LiquidityGauge` addresses
     """
     for i in range(32):
-        if _gauges[i] == ZERO_ADDRESS:
+        if _gauges[i] == empty(address):
             pass
         self._psuedo_mint(_gauges[i], msg.sender)
 
@@ -149,14 +160,15 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     @param _manager The address to set as manager of the gauge
     @param _salt A value to deterministically deploy a gauge
     """
-    if self.get_gauge_from_lp_token[_lp_token] != ZERO_ADDRESS:
+    if self.get_gauge_from_lp_token[_lp_token] != empty(address):
         # overwriting lp_token -> gauge mapping requires
         assert msg.sender == self.owner  # dev: only owner
 
     gauge_data: uint256 = 1  # set is_valid_gauge = True
     implementation: address = self.get_implementation
-    gauge: address = create_forwarder_to(
-        implementation, salt=keccak256(_abi_encode(chain.id, msg.sender, _salt))
+    salt: bytes32 = keccak256(_abi_encode(chain.id, msg.sender, _salt))
+    gauge: address = create_minimal_proxy_to(
+        implementation, salt=salt
     )
 
     if msg.sender == self.call_proxy:
@@ -166,7 +178,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
         CallProxy(self.call_proxy).anyCall(
             self,
             _abi_encode(chain.id, _salt, method_id=method_id("deploy_gauge(uint256,bytes32)")),
-            ZERO_ADDRESS,
+            empty(address),
             1
         )
 
@@ -177,10 +189,37 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     self.get_gauge_count = idx + 1
     self.get_gauge_from_lp_token[_lp_token] = gauge
 
-    ChildGauge(gauge).initialize(_lp_token, _manager)
+    # derive root gauge address
+    gauge_codehash: bytes32 = keccak256(
+        concat(
+            0x602d3d8160093d39f3363d3d373d3d3d363d73,
+            self.root_implementation,
+            0x5af43d82803e903d91602b57fd5bf3,
+        )
+    )
+    digest: bytes32 = keccak256(concat(0xFF, convert(self.root_factory, bytes20), salt, gauge_codehash))
+    root: address = convert(convert(digest, uint256) & convert(max_value(uint160), uint256), address)
+
+    # If root is uninitialized, self.owner can always set the root gauge manually
+    # on the gauge contract itself via set_root_gauge method
+    ChildGauge(gauge).initialize(_lp_token, root, _manager)
 
     log DeployedGauge(implementation, _lp_token, msg.sender, _salt, gauge)
     return gauge
+
+
+@external
+def set_crv(_crv: ERC20):
+    """
+    @notice Sets CRV token address
+    @dev Child gauges reference the factory to fetch CRV address
+         If empty, the gauges do not mint any CRV tokens.
+    @param _crv address of CRV token on child chain
+    """
+    assert msg.sender == self.owner
+    assert _crv != empty(ERC20)
+
+    self.crv = _crv
 
 
 @external
@@ -279,7 +318,7 @@ def is_mirrored(_gauge: address) -> bool:
     @notice Query whether the gauge is mirrored on Ethereum mainnet
     @param _gauge The address of the gauge of interest
     """
-    return bitwise_and(self.gauge_data[_gauge], 2) != 0
+    return (self.gauge_data[_gauge] & 2) != 0
 
 
 @view

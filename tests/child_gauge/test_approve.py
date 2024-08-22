@@ -91,9 +91,7 @@ def test_permit(accounts, bob, chain, child_gauge):
     permit = Permit(owner=alice.address, spender=bob.address, value=2**256 - 1, nonce=0)
     sig = alice.sign_message(permit)
 
-    tx = child_gauge.permit(
-        alice, bob, 2**256 - 1, 2**256 - 1, sig.v, sig.r, sig.s, {"from": bob}
-    )
+    tx = child_gauge.permit(alice, bob, 2**256 - 1, 2**256 - 1, sig.v, sig.r, sig.s, {"from": bob})
 
     assert child_gauge.allowance(alice, bob) == 2**256 - 1
 

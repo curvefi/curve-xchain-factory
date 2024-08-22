@@ -1,30 +1,29 @@
-# @version 0.3.1
+# pragma version 0.3.7
 """
 @title Root Liquidity Gauge Implementation
 @license MIT
 @author Curve Finance
 """
 
-
-interface Bridger:
-    def cost() -> uint256: view
-    def bridge(_token: address, _destination: address, _amount: uint256): payable
+version: public(constant(String[8])) = "1.0.1"
 
 interface CRV20:
     def rate() -> uint256: view
     def future_epoch_time_write() -> uint256: nonpayable
-
-interface ERC20:
     def balanceOf(_account: address) -> uint256: view
     def approve(_account: address, _value: uint256): nonpayable
     def transfer(_to: address, _amount: uint256): nonpayable
+
+interface Bridger:
+    def cost() -> uint256: view
+    def bridge(_token: CRV20, _destination: address, _amount: uint256): payable
 
 interface GaugeController:
     def checkpoint_gauge(addr: address): nonpayable
     def gauge_relative_weight(addr: address, time: uint256) -> uint256: view
 
 interface Factory:
-    def get_bridger(_chain_id: uint256) -> address: view
+    def get_bridger(_chain_id: uint256) -> Bridger: view
     def owner() -> address: view
 
 interface Minter:
@@ -42,14 +41,15 @@ RATE_DENOMINATOR: constant(uint256) = 10 ** 18
 RATE_REDUCTION_COEFFICIENT: constant(uint256) = 1189207115002721024  # 2 ** (1/4) * 1e18
 RATE_REDUCTION_TIME: constant(uint256) = YEAR
 
-CRV: immutable(address)
-GAUGE_CONTROLLER: immutable(address)
-MINTER: immutable(address)
+CRV: immutable(CRV20)
+GAUGE_CONTROLLER: immutable(GaugeController)
+MINTER: immutable(Minter)
 
 
 chain_id: public(uint256)
-bridger: public(address)
-factory: public(address)
+bridger: public(Bridger)
+child_gauge: public(address)
+factory: public(Factory)
 inflation_params: public(InflationParams)
 
 last_period: public(uint256)
@@ -59,8 +59,8 @@ is_killed: public(bool)
 
 
 @external
-def __init__(_crv_token: address, _gauge_controller: address, _minter: address):
-    self.factory = 0x000000000000000000000000000000000000dEaD
+def __init__(_crv_token: CRV20, _gauge_controller: GaugeController, _minter: Minter):
+    self.factory = Factory(0x000000000000000000000000000000000000dEaD)
 
     # assign immutable variables
     CRV = _crv_token
@@ -79,15 +79,15 @@ def transmit_emissions():
     """
     @notice Mint any new emissions and transmit across to child gauge
     """
-    assert msg.sender == self.factory  # dev: call via factory
+    assert msg.sender == self.factory.address  # dev: call via factory
 
-    Minter(MINTER).mint(self)
-    minted: uint256 = ERC20(CRV).balanceOf(self)
+    MINTER.mint(self)
+    minted: uint256 = CRV.balanceOf(self)
 
     assert minted != 0  # dev: nothing minted
-    bridger: address = self.bridger
+    bridger: Bridger = self.bridger
 
-    Bridger(bridger).bridge(CRV, self, minted, value=Bridger(bridger).cost())
+    bridger.bridge(CRV, self.child_gauge, minted, value=bridger.cost())
 
 
 @view
@@ -118,7 +118,7 @@ def user_checkpoint(_user: address) -> bool:
     # emissions up to current period (not including it)
     if last_period != current_period:
         # checkpoint the gauge filling in any missing weight data
-        GaugeController(GAUGE_CONTROLLER).checkpoint_gauge(self)
+        GAUGE_CONTROLLER.checkpoint_gauge(self)
 
         params: InflationParams = self.inflation_params
         emissions: uint256 = 0
@@ -129,7 +129,7 @@ def user_checkpoint(_user: address) -> bool:
                 # don't calculate emissions for the current period
                 break
             period_time: uint256 = i * WEEK
-            weight: uint256 = GaugeController(GAUGE_CONTROLLER).gauge_relative_weight(self, period_time)
+            weight: uint256 = GAUGE_CONTROLLER.gauge_relative_weight(self, period_time)
 
             if period_time <= params.finish_time and params.finish_time < period_time + WEEK:
                 # calculate with old rate
@@ -157,14 +157,14 @@ def set_killed(_is_killed: bool):
     @notice Set the gauge kill status
     @dev Inflation params are modified accordingly to disable/enable emissions
     """
-    assert msg.sender == Factory(self.factory).owner()
+    assert msg.sender == self.factory.owner()
 
     if _is_killed:
         self.inflation_params.rate = 0
     else:
         self.inflation_params = InflationParams({
-            rate: CRV20(CRV).rate(),
-            finish_time: CRV20(CRV).future_epoch_time_write()
+            rate: CRV.rate(),
+            finish_time: CRV.future_epoch_time_write()
         })
         self.last_period = block.timestamp / WEEK
     self.is_killed = _is_killed
@@ -177,30 +177,43 @@ def update_bridger():
     @dev Bridger contracts should prevent bridging if ever updated
     """
     # reset approval
-    bridger: address = Factory(self.factory).get_bridger(self.chain_id)
-    ERC20(CRV).approve(self.bridger, 0)
-    ERC20(CRV).approve(bridger, MAX_UINT256)
+    bridger: Bridger = self.factory.get_bridger(self.chain_id)
+    CRV.approve(self.bridger.address, 0)
+    CRV.approve(bridger.address, max_value(uint256))
     self.bridger = bridger
 
 
 @external
-def initialize(_bridger: address, _chain_id: uint256):
+def set_child_gauge(_child: address):
+    """
+    @notice Set Child contract in case something went wrong (e.g. between implementation updates or zkSync)
+    @param _child Child gauge to set
+    """
+    assert msg.sender == self.factory.owner()
+    assert _child != empty(address)
+
+    self.child_gauge = _child
+
+
+@external
+def initialize(_bridger: Bridger, _chain_id: uint256, _child: address):
     """
     @notice Proxy initialization method
     """
-    assert self.factory == ZERO_ADDRESS  # dev: already initialized
+    assert self.factory == empty(Factory)  # dev: already initialized
 
+    self.child_gauge = _child
     self.chain_id = _chain_id
     self.bridger = _bridger
-    self.factory = msg.sender
+    self.factory = Factory(msg.sender)
 
     inflation_params: InflationParams = InflationParams({
-        rate: CRV20(CRV).rate(),
-        finish_time: CRV20(CRV).future_epoch_time_write()
+        rate: CRV.rate(),
+        finish_time: CRV.future_epoch_time_write()
     })
     assert inflation_params.rate != 0
 
     self.inflation_params = inflation_params
     self.last_period = block.timestamp / WEEK
 
-    ERC20(CRV).approve(_bridger, MAX_UINT256)
+    CRV.approve(_bridger.address, max_value(uint256))
