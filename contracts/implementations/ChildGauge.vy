@@ -16,6 +16,7 @@ implements: ERC20
 
 interface ERC20Extended:
     def symbol() -> String[26]: view
+    def decimals() -> uint256: view
 
 interface Factory:
     def owner() -> address: view
@@ -52,13 +53,19 @@ event UpdateLiquidityLimit:
     _working_balance: uint256
     _working_supply: uint256
 
+event NewReward:
+    id: indexed(uint256)
+    token: indexed(ERC20)
+
 
 struct Reward:
+    token: ERC20
     distributor: address
     period_finish: uint256
     rate: uint256
     last_update: uint256
     integral: uint256
+    precision: uint256
 
 
 DOMAIN_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
@@ -99,15 +106,13 @@ integrate_inv_supply: public(HashMap[uint256, uint256])
 integrate_inv_supply_of: public(HashMap[address, uint256])
 
 # For tracking external rewards
-reward_count: public(uint256)
-reward_tokens: public(address[MAX_REWARDS])
-reward_data: public(HashMap[address, Reward])
+reward_data: public(DynArray[Reward, MAX_REWARDS])
 # claimant -> default reward receiver
 rewards_receiver: public(HashMap[address, address])
-# reward token -> claiming address -> integral
-reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
-# user -> token -> [uint128 claimable amount][uint128 claimed amount]
-claim_data: HashMap[address, HashMap[address, uint256]]
+# reward id -> claiming address -> integral
+reward_integral_for: public(HashMap[uint256, HashMap[address, uint256]])
+# user -> reward id -> [uint128 claimable amount][uint128 claimed amount]
+claim_data: HashMap[address, uint256[MAX_REWARDS]]
 
 is_killed: public(bool)
 inflation_rate: public(HashMap[uint256, uint256])
@@ -120,6 +125,13 @@ def __init__(_factory: Factory):
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
     FACTORY = _factory
+
+
+@external
+@view
+def reward_count() -> uint256:
+    # Backward-compatability
+    return len(self.reward_data)
 
 
 @internal
@@ -216,38 +228,37 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                 # if no default receiver is set, direct claims to the user
                 receiver = _user
 
-    reward_count: uint256 = self.reward_count
     for i in range(MAX_REWARDS):
-        if i == reward_count:
+        if i >= len(self.reward_data):
             break
-        token: address = self.reward_tokens[i]
+        data: Reward = self.reward_data[i]
 
-        integral: uint256 = self.reward_data[token].integral
-        last_update: uint256 = min(block.timestamp, self.reward_data[token].period_finish)
-        duration: uint256 = last_update - self.reward_data[token].last_update
+        integral: uint256 = data.integral
+        last_update: uint256 = min(block.timestamp, data.period_finish)
+        duration: uint256 = last_update - data.last_update
         if duration != 0:
-            self.reward_data[token].last_update = last_update
+            self.reward_data[i].last_update = last_update
             if _total_supply != 0:
-                integral += duration * self.reward_data[token].rate * 10**18 / _total_supply
-                self.reward_data[token].integral = integral
+                integral += duration * data.rate * 10**18 / _total_supply
+                self.reward_data[i].integral = integral
 
         if _user != empty(address):
-            integral_for: uint256 = self.reward_integral_for[token][_user]
+            integral_for: uint256 = self.reward_integral_for[i][_user]
             new_claimable: uint256 = 0
 
             if integral_for < integral:
-                self.reward_integral_for[token][_user] = integral
+                self.reward_integral_for[i][_user] = integral
                 new_claimable = user_balance * (integral - integral_for) / 10**18
 
-            claim_data: uint256 = self.claim_data[_user][token]
+            claim_data: uint256 = self.claim_data[_user][i]
             total_claimable: uint256 = shift(claim_data, -128) + new_claimable
             if total_claimable > 0:
                 total_claimed: uint256 = claim_data % 2**128
                 if _claim:
-                    assert ERC20(token).transfer(receiver, total_claimable, default_return_value=True)
-                    self.claim_data[_user][token] = total_claimed + total_claimable
+                    assert data.token.transfer(receiver, total_claimable / data.precision, default_return_value=True)
+                    self.claim_data[_user][i] = total_claimed + total_claimable
                 elif new_claimable > 0:
-                    self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
+                    self.claim_data[_user][i] = total_claimed + shift(total_claimable, 128)
 
 
 @internal
@@ -256,7 +267,7 @@ def _transfer(_from: address, _to: address, _value: uint256):
         return
     total_supply: uint256 = self.totalSupply
 
-    has_rewards: bool = self.reward_count != 0
+    has_rewards: bool = len(self.reward_data) > 0
     for addr in [_from, _to]:
         self._checkpoint(addr)
         self._checkpoint_rewards(addr, total_supply, False, empty(address))
@@ -287,7 +298,7 @@ def deposit(_value: uint256, _user: address = msg.sender, _claim_rewards: bool =
     total_supply: uint256 = self.totalSupply
     new_balance: uint256 = self.balanceOf[_user] + _value
 
-    if self.reward_count != 0:
+    if len(self.reward_data) > 0:
         self._checkpoint_rewards(_user, total_supply, _claim_rewards, empty(address))
 
     total_supply += _value
@@ -318,7 +329,7 @@ def withdraw(_value: uint256, _user: address = msg.sender, _claim_rewards: bool 
     total_supply: uint256 = self.totalSupply
     new_balance: uint256 = self.balanceOf[msg.sender] - _value
 
-    if self.reward_count != 0:
+    if len(self.reward_data) > 0:
         self._checkpoint_rewards(_user, total_supply, _claim_rewards, empty(address))
 
     total_supply -= _value
@@ -495,36 +506,79 @@ def claimable_tokens(addr: address) -> uint256:
 
 @view
 @external
-def claimed_reward(_addr: address, _token: address) -> uint256:
+def claimed_reward_by_id(_addr: address, _reward_id: uint256) -> uint256:
+    """
+    @notice Get the number of already-claimed reward tokens for a user
+    @param _addr Account to get reward amount for
+    @param _reward_id ID of reward (index in `.reward_data`)
+    @return uint256 Total amount of reward already claimed by `_addr`
+    """
+    return self.claim_data[_addr][_reward_id] % 2**128 / self.reward_data[_reward_id].precision
+
+
+@view
+@external
+def claimed_reward(_addr: address, _token: ERC20) -> uint256:
     """
     @notice Get the number of already-claimed reward tokens for a user
     @param _addr Account to get reward amount for
     @param _token Token to get reward amount for
     @return uint256 Total amount of `_token` already claimed by `_addr`
     """
-    return self.claim_data[_addr][_token] % 2**128
+    claimed: uint256 = 0
+    for i in range(MAX_REWARDS):
+        if i >= len(self.reward_data):
+            break
+        reward_data: Reward = self.reward_data[i]
+        if reward_data.token == _token:
+            claimed += self.claim_data[_addr][i] % 2**128 / reward_data.precision
+    return claimed
+
+
+@view
+@internal
+def _claimable_reward(user: address, reward_id: uint256, reward_data: Reward) -> uint256:
+    integral: uint256 = reward_data.integral
+    total_supply: uint256 = self.totalSupply
+    if total_supply != 0:
+        duration: uint256 = min(block.timestamp, reward_data.period_finish) - reward_data.last_update
+        integral += (duration * reward_data.rate * 10**18 / total_supply)
+
+    integral_for: uint256 = self.reward_integral_for[reward_id][user]
+    new_claimable: uint256 = self.balanceOf[user] * (integral - integral_for) / 10**18
+
+    return (shift(self.claim_data[user][reward_id], -128) + new_claimable) / reward_data.precision
 
 
 @view
 @external
-def claimable_reward(_user: address, _reward_token: address) -> uint256:
+def claimable_reward_by_id(_user: address, _reward_id: uint256) -> uint256:
+    """
+    @notice Get the number of claimable reward tokens for a user
+    @param _user Account to get reward amount for
+    @param _reward_id ID of reward (index in `.reward_data`)
+    @return uint256 Claimable reward token amount
+    """
+    return self._claimable_reward(_user, _reward_id, self.reward_data[_reward_id])
+
+
+@view
+@external
+def claimable_reward(_user: address, _reward_token: ERC20) -> uint256:
     """
     @notice Get the number of claimable reward tokens for a user
     @param _user Account to get reward amount for
     @param _reward_token Token to get reward amount for
     @return uint256 Claimable reward token amount
     """
-    integral: uint256 = self.reward_data[_reward_token].integral
-    total_supply: uint256 = self.totalSupply
-    if total_supply != 0:
-        last_update: uint256 = min(block.timestamp, self.reward_data[_reward_token].period_finish)
-        duration: uint256 = last_update - self.reward_data[_reward_token].last_update
-        integral += (duration * self.reward_data[_reward_token].rate * 10**18 / total_supply)
-
-    integral_for: uint256 = self.reward_integral_for[_reward_token][_user]
-    new_claimable: uint256 = self.balanceOf[_user] * (integral - integral_for) / 10**18
-
-    return shift(self.claim_data[_user][_reward_token], -128) + new_claimable
+    total: uint256 = 0
+    for i in range(MAX_REWARDS):
+        if i >= len(self.reward_data):
+            break
+        reward_data: Reward = self.reward_data[i]
+        if reward_data.token == _reward_token:
+            total += self._claimable_reward(_user, i, reward_data)
+    return total
 
 
 @external
@@ -553,51 +607,85 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = empty(addres
 
 
 @external
-def add_reward(_reward_token: address, _distributor: address):
+def add_reward(_reward_token: ERC20, _distributor: address, _precision: uint256=0) -> uint256:
     """
     @notice Set the active reward contract
+    @param _reward_token Address of reward token
+    @param _distributor Address that will deposit rewards
+    @param _precision Precision for rate calculation, optional. Will adjust to 18-decimal amounts by default
+    @return ID of added reward
     """
     assert msg.sender == self.manager or msg.sender == FACTORY.owner()
 
-    reward_count: uint256 = self.reward_count
-    assert reward_count < MAX_REWARDS
-    assert self.reward_data[_reward_token].distributor == empty(address)
+    precision: uint256 = _precision
+    if precision == 0:
+        precision = 10 ** (18 - ERC20Extended(_reward_token.address).decimals())
+    self.reward_data.append(
+        Reward({
+            token: _reward_token,
+            distributor: _distributor,
+            period_finish: 0,
+            rate: 0,
+            last_update: 0,
+            integral: 0,
+            precision: precision,
+        })
+    )
 
-    self.reward_data[_reward_token].distributor = _distributor
-    self.reward_tokens[reward_count] = _reward_token
-    self.reward_count = reward_count + 1
+    reward_id: uint256 = len(self.reward_data) - 1
+    log NewReward(reward_id, _reward_token)
+    return reward_id
 
 
 @external
-def set_reward_distributor(_reward_token: address, _distributor: address):
-    current_distributor: address = self.reward_data[_reward_token].distributor
+def set_reward_distributor(_reward_id: uint256, _distributor: address):
+    current_distributor: address = self.reward_data[_reward_id].distributor
 
     assert msg.sender == current_distributor or msg.sender == self.manager or msg.sender == FACTORY.owner()
     assert current_distributor != empty(address)
     assert _distributor != empty(address)
 
-    self.reward_data[_reward_token].distributor = _distributor
+    self.reward_data[_reward_id].distributor = _distributor
 
 
 @external
 @nonreentrant("lock")
-def deposit_reward_token(_reward_token: address, _amount: uint256):
-    assert msg.sender == self.reward_data[_reward_token].distributor
+def deposit_reward_token(_reward_id: uint256, _amount: uint256, _new_duration: uint256=0, _new_period_finish: uint256=0):
+    """
+    @notice Deposit tokens for rewards.
+    @param _reward_id ID of reward to deposit to
+    @param _amount Amount of reward token to deposit
+    @param _new_duration Optional. Minimum reward duration period
+    @param _new_period_finish Optional. Timestamp for new period finish
+    """
+    reward_data: Reward = self.reward_data[_reward_id]
+    assert msg.sender == reward_data.distributor
 
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    assert ERC20(_reward_token).transferFrom(msg.sender, self, _amount, default_return_value=True)
+    assert reward_data.token.transferFrom(msg.sender, self, _amount, default_return_value=True)
 
-    period_finish: uint256 = self.reward_data[_reward_token].period_finish
-    if block.timestamp >= period_finish:
-        self.reward_data[_reward_token].rate = _amount / WEEK
-    else:
-        remaining: uint256 = period_finish - block.timestamp
-        leftover: uint256 = remaining * self.reward_data[_reward_token].rate
-        self.reward_data[_reward_token].rate = (_amount + leftover) / WEEK
+    new_period_finish: uint256 = block.timestamp + WEEK  # default
+    if _new_period_finish != 0:
+        new_period_finish = _new_period_finish
+    elif _new_duration != 0:
+        new_period_finish = block.timestamp + _new_duration
+    elif reward_data.period_finish >= block.timestamp + WEEK:  # Backward-compatible behaviour
+        new_period_finish = reward_data.period_finish
+    duration: uint256 = new_period_finish - block.timestamp
 
-    self.reward_data[_reward_token].last_update = block.timestamp
-    self.reward_data[_reward_token].period_finish = block.timestamp + WEEK
+    amount: uint256 = _amount * reward_data.precision
+    if block.timestamp < reward_data.period_finish:  # add leftover
+        amount += (reward_data.period_finish - block.timestamp) * reward_data.rate
+
+    new_rate: uint256 = amount / duration
+    if block.timestamp + WEEK < reward_data.period_finish:  # allow radical changes only last week
+        assert new_period_finish >= reward_data.period_finish, "Period rug too early"
+        assert new_rate >= reward_data.rate, "Rate rug too early"
+
+    self.reward_data[_reward_id].rate = new_rate
+    self.reward_data[_reward_id].last_update = block.timestamp  # in case last_update < block.timestamp
+    self.reward_data[_reward_id].period_finish = new_period_finish
 
 
 @external
