@@ -61,8 +61,8 @@ event NewReward:
 struct Reward:
     token: ERC20
     distributor: address
-    period_finish: uint256
-    rate: uint256
+    remaining_time: uint256
+    remaining_amount: uint256
     last_update: uint256
     integral: uint256
     precision: uint256
@@ -234,12 +234,14 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
         data: Reward = self.reward_data[i]
 
         integral: uint256 = data.integral
-        last_update: uint256 = min(block.timestamp, data.period_finish)
-        duration: uint256 = last_update - data.last_update
+        duration: uint256 = min(block.timestamp - data.last_update, data.remaining_time)
         if duration != 0:
-            self.reward_data[i].last_update = last_update
+            self.reward_data[i].last_update = data.last_update + duration
             if _total_supply != 0:
-                integral += duration * data.rate * 10**18 / _total_supply
+                amount_for_duration: uint256 = (data.remaining_amount * data.precision) * duration / data.remaining_time
+                integral += amount_for_duration * 10**18 / _total_supply
+                self.reward_data[i].remaining_time = data.remaining_time - duration
+                self.reward_data[i].remaining_amount = data.remaining_amount - amount_for_duration
                 self.reward_data[i].integral = integral
 
         if _user != empty(address):
@@ -256,7 +258,8 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                 total_claimed: uint256 = claim_data % 2**128
                 if _claim:
                     assert data.token.transfer(receiver, total_claimable / data.precision, default_return_value=True)
-                    self.claim_data[_user][i] = total_claimed + total_claimable
+                    self.claim_data[_user][i] = total_claimed + total_claimable / data.precision +\
+                        shift(total_claimable % data.precision, 128)
                 elif new_claimable > 0:
                     self.claim_data[_user][i] = total_claimed + shift(total_claimable, 128)
 
@@ -541,8 +544,10 @@ def _claimable_reward(user: address, reward_id: uint256, reward_data: Reward) ->
     integral: uint256 = reward_data.integral
     total_supply: uint256 = self.totalSupply
     if total_supply != 0:
-        duration: uint256 = min(block.timestamp, reward_data.period_finish) - reward_data.last_update
-        integral += (duration * reward_data.rate * 10**18 / total_supply)
+        duration: uint256 = min(block.timestamp - reward_data.last_update, reward_data.remaining_time)
+        amount_for_duration: uint256 = (reward_data.remaining_amount * reward_data.precision) *\
+            duration / reward_data.remaining_time
+        integral += (amount_for_duration * 10**18 / total_supply)
 
     integral_for: uint256 = self.reward_integral_for[reward_id][user]
     new_claimable: uint256 = self.balanceOf[user] * (integral - integral_for) / 10**18
@@ -621,12 +626,13 @@ def add_reward(_reward_token: ERC20, _distributor: address, _precision: uint256=
     precision: uint256 = _precision
     if precision == 0:
         precision = 10 ** (18 - ERC20Extended(_reward_token.address).decimals())
+    assert precision <= 10 ** 18, "Precision too big"
     self.reward_data.append(
         Reward({
             token: _reward_token,
             distributor: _distributor,
-            period_finish: 0,
-            rate: 0,
+            remaining_time: 0,
+            remaining_amount: 0,
             last_update: 0,
             integral: 0,
             precision: precision,
@@ -649,44 +655,65 @@ def set_reward_distributor(_reward_id: uint256, _distributor: address):
     self.reward_data[_reward_id].distributor = _distributor
 
 
-@external
-@nonreentrant("lock")
-def deposit_reward_token(_reward_id: uint256, _amount: uint256, _new_duration: uint256=0, _new_period_finish: uint256=0):
+@internal
+@pure
+def _check_reward_boundaries(reward_data: Reward):
     """
-    @notice Deposit tokens for rewards.
-    @param _reward_id ID of reward to deposit to
-    @param _amount Amount of reward token to deposit
-    @param _new_duration Optional. Minimum reward duration period
-    @param _new_period_finish Optional. Timestamp for new period finish
+    @notice Check that reward parameters will not overflow
+    """
+    assert reward_data.remaining_time * reward_data.remaining_amount * reward_data.precision <= max_value(uint256)
+    assert reward_data.remaining_amount * reward_data.precision * 10 ** 18 <= max_value(uint256)
+
+
+@external
+def deposit_reward(_reward_id: uint256, _amount: uint256):
+    """
+    @notice Deposit reward tokens for distribution
+    @param _reward_id ID of reward (index in reward_data)
+    @param _amount Amount to deposit for rewards
+    """
+    reward_data: Reward = self.reward_data[_reward_id]
+
+    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+
+    assert reward_data.token.transferFrom(msg.sender, self, _amount, default_return_value=True)
+    reward_data.remaining_amount += _amount
+    self._check_reward_boundaries(reward_data)
+    self.reward_data[_reward_id].remaining_time = reward_data.remaining_amount
+
+
+@external
+def recover_remaining_reward(_reward_id: uint256, _receiver: address=msg.sender):
+    """
+    @notice Recover reward tokens. Only when remaining time = 0
+    @param _reward_id ID of reward (index in reward_data)
+    @param _receiver Receiver of recovered tokens (distributor by default)
+    """
+    reward_data: Reward = self.reward_data[_reward_id]
+    assert msg.sender == reward_data.distributor
+    assert reward_data.remaining_time == 0, "Distribution in progress"
+
+    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+
+    self.reward_data[_reward_id].remaining_amount = 0
+    assert reward_data.token.transfer(_receiver, reward_data.remaining_amount, default_return_value=True)
+
+
+@external
+def set_reward_duration(_reward_id: uint256, _duration: uint256):
+    """
+    @notice Set duration for reward distribution. Function works as a trigger to start reward distribution
+    @param _reward_id ID of reward (index in reward_data)
+    @param _duration Time for reward distribution in seconds
     """
     reward_data: Reward = self.reward_data[_reward_id]
     assert msg.sender == reward_data.distributor
 
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    assert reward_data.token.transferFrom(msg.sender, self, _amount, default_return_value=True)
-
-    new_period_finish: uint256 = block.timestamp + WEEK  # default
-    if _new_period_finish != 0:
-        new_period_finish = _new_period_finish
-    elif _new_duration != 0:
-        new_period_finish = block.timestamp + _new_duration
-    elif reward_data.period_finish >= block.timestamp + WEEK:  # Backward-compatible behaviour
-        new_period_finish = reward_data.period_finish
-    duration: uint256 = new_period_finish - block.timestamp
-
-    amount: uint256 = _amount * reward_data.precision
-    if block.timestamp < reward_data.period_finish:  # add leftover
-        amount += (reward_data.period_finish - block.timestamp) * reward_data.rate
-
-    new_rate: uint256 = amount / duration
-    if block.timestamp + WEEK < reward_data.period_finish:  # allow radical changes only last week
-        assert new_period_finish >= reward_data.period_finish, "Period rug too early"
-        assert new_rate >= reward_data.rate, "Rate rug too early"
-
-    self.reward_data[_reward_id].rate = new_rate
-    self.reward_data[_reward_id].last_update = block.timestamp  # in case last_update < block.timestamp
-    self.reward_data[_reward_id].period_finish = new_period_finish
+    reward_data.remaining_time = _duration
+    self._check_reward_boundaries(reward_data)
+    self.reward_data[_reward_id].remaining_time = _duration
 
 
 @external
