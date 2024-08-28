@@ -616,6 +616,7 @@ def add_reward(_reward_token: ERC20, _distributor: address, _precision: uint256=
     @return ID of added reward
     """
     assert msg.sender == self.manager or msg.sender == FACTORY.owner()
+    assert _reward_token != FACTORY.crv()
 
     precision: uint256 = _precision
     if precision == 0:
