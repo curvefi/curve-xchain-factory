@@ -795,7 +795,7 @@ def rate_per_lp_token(_reward_id: uint256, _with_precision: bool=False) -> uint2
     precision: uint256 = 0
     rate, precision = self._rate(_reward_id)
 
-    rate = rate * 10 ** 18 / self.totalSupply
+    rate = rate * 10 ** 18 / max(self.totalSupply, 10 ** 18)
     if _with_precision:
         return rate
     return rate / precision
