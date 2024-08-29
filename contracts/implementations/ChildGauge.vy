@@ -59,13 +59,14 @@ event NewReward:
 
 
 struct RewardData:
-    token: ERC20
-    distributor: address
-    remaining_time: uint256
-    remaining_amount: uint256
-    last_update: uint256
-    integral: uint256
-    precision: uint256
+    token: ERC20  # Reward token
+    distributor: address  # address responsible for period set and recovering funds
+    remaining_time: uint256  #
+    remaining_amount: uint256  #
+    last_update: uint256  # last update of integral
+    integral: uint256  # Integral for amount of reward distributed to 1 lp token
+    precision: uint256  # Calculations multiplier on amount
+    locked: bool  # You can lock reward, so noone is able to change parameters before end of distribution
 
 
 DOMAIN_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
@@ -607,6 +608,16 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = empty(addres
     self._checkpoint_rewards(_addr, self.totalSupply, True, _receiver)
 
 
+@external
+@nonreentrant('lock')
+def claim_rewards_for(_users: DynArray[address, 64]):
+    """
+    @notice Claim rewards for multiple users
+    """
+    for addr in _users:
+        self._checkpoint_rewards(addr, self.totalSupply, True, empty(address))
+
+
 # Rewarder methods
 
 
@@ -635,6 +646,7 @@ def add_reward(_reward_token: ERC20, _distributor: address, _precision: uint256=
             last_update: 0,
             integral: 0,
             precision: precision,
+            locked: False,
         })
     )
 
@@ -665,16 +677,16 @@ def _check_reward_boundaries(reward_data: RewardData):
 
 
 @external
+@nonreentrant('lock')
 def deposit_reward(_reward_id: uint256, _amount: uint256):
     """
     @notice Deposit reward tokens for distribution
     @param _reward_id ID of reward (index in reward_data)
     @param _amount Amount to deposit for rewards
     """
-    reward_data: RewardData = self.reward_data[_reward_id]
-
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
+    reward_data: RewardData = self.reward_data[_reward_id]
     assert reward_data.token.transferFrom(msg.sender, self, _amount, default_return_value=True)
     reward_data.remaining_amount += _amount
     self._check_reward_boundaries(reward_data)
@@ -682,37 +694,56 @@ def deposit_reward(_reward_id: uint256, _amount: uint256):
 
 
 @external
+@nonreentrant('lock')
 def recover_remaining_reward(_reward_id: uint256, _receiver: address=msg.sender):
     """
     @notice Recover reward tokens. Only when remaining time = 0
     @param _reward_id ID of reward (index in reward_data)
     @param _receiver Receiver of recovered tokens (distributor by default)
     """
+    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+
     reward_data: RewardData = self.reward_data[_reward_id]
     assert msg.sender == reward_data.distributor
     assert reward_data.remaining_time == 0, "Distribution in progress"
-
-    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
     self.reward_data[_reward_id].remaining_amount = 0
     assert reward_data.token.transfer(_receiver, reward_data.remaining_amount, default_return_value=True)
 
 
 @external
+@nonreentrant('lock')
 def set_reward_duration(_reward_id: uint256, _duration: uint256):
     """
     @notice Set duration for reward distribution. Function works as a trigger to start reward distribution
     @param _reward_id ID of reward (index in reward_data)
     @param _duration Time for reward distribution in seconds
     """
+    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+
     reward_data: RewardData = self.reward_data[_reward_id]
     assert msg.sender == reward_data.distributor
-
-    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+    assert WEEK / 7 <= _duration and _duration <= WEEK * 4 * 12, "Duration out of range"
+    assert reward_data.remaining_time == 0 or not reward_data.locked, "Reward is locked"
 
     reward_data.remaining_time = _duration
     self._check_reward_boundaries(reward_data)
     self.reward_data[_reward_id].remaining_time = _duration
+
+
+@external
+@nonreentrant('lock')
+def lock_reward(_reward_id: uint256):
+    """
+    @notice Lock reward so noone(distributor/manager/DAO) can rug setting duration + recovering
+    """
+    self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
+
+    reward_data: RewardData = self.reward_data[_reward_id]
+    assert msg.sender == reward_data.distributor
+    assert reward_data.remaining_time > 0, "Nothing to lock"
+
+    self.reward_data[_reward_id].locked = True
 
 
 # Owner(DAO) methods
