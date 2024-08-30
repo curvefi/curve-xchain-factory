@@ -831,6 +831,18 @@ def rate_per_lp_token(_reward_id: uint256, _with_precision: bool=False) -> uint2
     return rate / precision
 
 
+@external
+@view
+def get_rewards_of(_token: ERC20) -> DynArray[RewardData, MAX_REWARDS]:
+    rewards: DynArray[RewardData, MAX_REWARDS] = []
+    for i in range(MAX_REWARDS):
+        if i >= len(self.reward_data):
+            break
+        if self.reward_data[i].token == _token:
+            rewards.append(self.reward_data[i])
+    return rewards
+
+
 @view
 @external
 def decimals() -> uint256:
