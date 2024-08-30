@@ -703,12 +703,12 @@ def recover_remaining_reward(_reward_id: uint256, _receiver: address=msg.sender)
     """
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    reward_data: RewardData = self.reward_data[_reward_id]
-    assert msg.sender == reward_data.distributor
-    assert reward_data.remaining_time == 0, "Distribution in progress"
+    assert msg.sender == self.reward_data[_reward_id].distributor
+    assert self.reward_data[_reward_id].remaining_time == 0, "Distribution in progress"
 
+    remaining_amount: uint256 = self.reward_data[_reward_id].remaining_amount
     self.reward_data[_reward_id].remaining_amount = 0
-    assert reward_data.token.transfer(_receiver, reward_data.remaining_amount, default_return_value=True)
+    assert self.reward_data[_reward_id].token.transfer(_receiver, remaining_amount, default_return_value=True)
 
 
 @external
@@ -739,9 +739,8 @@ def lock_reward(_reward_id: uint256):
     """
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    reward_data: RewardData = self.reward_data[_reward_id]
-    assert msg.sender == reward_data.distributor
-    assert reward_data.remaining_time > 0, "Nothing to lock"
+    assert msg.sender == self.reward_data[_reward_id].distributor
+    assert self.reward_data[_reward_id].remaining_time > 0, "Nothing to lock"
 
     self.reward_data[_reward_id].locked = True
 
