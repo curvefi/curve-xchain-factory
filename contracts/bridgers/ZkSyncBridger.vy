@@ -51,11 +51,10 @@ struct RecoverInput:
 
 
 ZK_SYNC_ETH_ADDRESS: constant(address) = 0x0000000000000000000000000000000000000001
-MAX_LEN: constant(uint256) = 64
 MAX_TRANSFER_LEN: constant(uint256) = 3 * 32
 
 BRIDGE_HUB: public(immutable(ZkSyncBridgeHub))
-# chain id -> DestinationData
+# chain id -> DestinationData (default at chain_id=0)
 destination_data: public(HashMap[uint256, DestinationData])
 
 owner: public(address)
@@ -66,7 +65,7 @@ manual_parameters: transient(ManualParameters)
 @deploy
 def __init__(_bridge_hub: address):
     BRIDGE_HUB = ZkSyncBridgeHub(_bridge_hub)
-    crv: IERC20 = IERC20(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9)  # 0xD533a949740bb3306d119CC777fa900bA034cd52
+    crv: IERC20 = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52)
     assert extcall crv.approve(_bridge_hub, max_value(uint256))
 
     self.destination_data[0] = DestinationData(  # default value
@@ -138,12 +137,12 @@ def _applied_destination_data(chain_id: uint256) -> (DestinationData, uint256):
 @payable
 def bridge(_chain_id: uint256, _token: IERC20, _to: address, _amount: uint256, _min_amount: uint256=0) -> uint256:
     """
-    @notice Bridge a token to zkSync using BridgedHub with SharedBridge
-    @dev Might need `l2GasPerPubdataByteLimit` change from bridge initiator.
-    @param _chain_id Chain ID of L2
+    @notice Bridge a token to zkSync using BridgedHub with SharedBridge.
+        Might need manual parameters change from bridge initiator.
+    @param _chain_id Chain ID of L2 (e.g. 324)
     @param _token The token to bridge (base token is not supported)
     @param _to The address to deposit the token to on L2
-    @param _amount The amount of the token to deposit, 2^256-1 for the whole balance
+    @param _amount The amount of the token to deposit, 2^256-1 for the whole available balance
     @param _min_amount Minimum amount when to bridge
     @return Bridged amount
     """
@@ -212,7 +211,7 @@ def set_destination_data(_chain_id: uint256, _destination_data: DestinationData)
 
 
 @external
-def recover(_recovers: DynArray[RecoverInput, MAX_LEN], _receiver: address):
+def recover(_recovers: DynArray[RecoverInput, 64], _receiver: address):
     """
     @notice Recover ERC20 tokens or Ether from this contract
     @dev Callable only by owner and emergency owner
