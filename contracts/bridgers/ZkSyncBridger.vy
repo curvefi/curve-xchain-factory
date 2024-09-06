@@ -21,7 +21,7 @@ interface ZkSyncBridgeHub:
     def baseToken(_chainId: uint256) -> IERC20: view
 
 
-event DestinationDataUpdate:
+event SetDestinationData:
     chain_id: indexed(uint256)
     destination_data: DestinationData
 
@@ -82,7 +82,7 @@ def __init__(_bridge_hub: address):
         allow_custom_refund=True,
     )
     self.destination_data[0] = default_data
-    log DestinationDataUpdate(0, default_data)
+    log SetDestinationData(0, default_data)
 
     ownable.__init__()
 
@@ -111,7 +111,7 @@ def _fetch_destination_data(chain_id: uint256) -> DestinationData:
         assert data.base_token != empty(IERC20), "baseToken not set"
 
         self.destination_data[chain_id] = data  # Update for future uses
-        log DestinationDataUpdate(chain_id, data)
+        log SetDestinationData(chain_id, data)
     return data
 
 
@@ -216,7 +216,7 @@ def set_destination_data(_chain_id: uint256, _destination_data: DestinationData)
     ownable._check_owner()
 
     self.destination_data[_chain_id] = _destination_data
-    log DestinationDataUpdate(_chain_id, _destination_data)
+    log SetDestinationData(_chain_id, _destination_data)
 
 
 @external
