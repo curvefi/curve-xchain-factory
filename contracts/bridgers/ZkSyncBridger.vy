@@ -21,6 +21,11 @@ interface ZkSyncBridgeHub:
     def baseToken(_chainId: uint256) -> IERC20: view
 
 
+event DestinationDataUpdate:
+    chain_id: indexed(uint256)
+    destination_data: DestinationData
+
+
 struct L2TransactionRequestTwoBridgesOuter:
     chainId: uint256
     mintValue: uint256
@@ -68,7 +73,7 @@ def __init__(_bridge_hub: address):
     crv: IERC20 = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52)
     assert extcall crv.approve(_bridge_hub, max_value(uint256))
 
-    self.destination_data[0] = DestinationData(  # default value
+    default_data: DestinationData = DestinationData(
         bridge=staticcall BRIDGE_HUB.sharedBridge(),
         base_token=empty(IERC20),
         l2_gas_limit=2 * 10 ** 6,  # Create token if necessary + transfers
@@ -76,6 +81,8 @@ def __init__(_bridge_hub: address):
         refund_recipient=empty(address),
         allow_custom_refund=True,
     )
+    self.destination_data[0] = default_data
+    log DestinationDataUpdate(0, default_data)
 
     ownable.__init__()
 
@@ -104,6 +111,7 @@ def _fetch_destination_data(chain_id: uint256) -> DestinationData:
         assert data.base_token != empty(IERC20), "baseToken not set"
 
         self.destination_data[chain_id] = data  # Update for future uses
+        log DestinationDataUpdate(chain_id, data)
     return data
 
 
@@ -208,6 +216,7 @@ def set_destination_data(_chain_id: uint256, _destination_data: DestinationData)
     ownable._check_owner()
 
     self.destination_data[_chain_id] = _destination_data
+    log DestinationDataUpdate(_chain_id, _destination_data)
 
 
 @external
