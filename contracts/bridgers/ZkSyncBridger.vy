@@ -19,10 +19,10 @@ interface ZkSyncBridgeHub:
     def requestL2TransactionTwoBridges(request: L2TransactionRequestTwoBridgesOuter) -> bytes32: payable
     def sharedBridge() -> address: view
     def baseToken(_chainId: uint256) -> IERC20: view
+    def l2TransactionBaseCost(_chainId: uint256, _gasPrice: uint256, _l2GasLimit: uint256, _l2GasPerPubdataByteLimit: uint256) -> uint256: view
 
 
 event SetDestinationData:
-    chain_id: indexed(uint256)
     destination_data: DestinationData
 
 
@@ -58,9 +58,9 @@ struct RecoverInput:
 ZK_SYNC_ETH_ADDRESS: constant(address) = 0x0000000000000000000000000000000000000001
 MAX_TRANSFER_LEN: constant(uint256) = 3 * 32
 
-BRIDGE_HUB: public(immutable(ZkSyncBridgeHub))
-# chain id -> DestinationData (default at chain_id=0)
-destination_data: public(HashMap[uint256, DestinationData])
+BRIDGE_HUB: public(constant(ZkSyncBridgeHub)) = ZkSyncBridgeHub(0x303a465B659cBB0ab36eE643eA362c509EEb5213)
+CHAIN_ID: public(immutable(uint256))
+destination_data: public(DestinationData)
 
 owner: public(address)
 
@@ -68,21 +68,23 @@ manual_parameters: transient(ManualParameters)
 
 
 @deploy
-def __init__(_bridge_hub: address):
-    BRIDGE_HUB = ZkSyncBridgeHub(_bridge_hub)
-    crv: IERC20 = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52)
-    assert extcall crv.approve(_bridge_hub, max_value(uint256))
+def __init__(_chain_id: uint256):
+    CHAIN_ID = _chain_id
 
     default_data: DestinationData = DestinationData(
         bridge=staticcall BRIDGE_HUB.sharedBridge(),
-        base_token=empty(IERC20),
+        base_token=staticcall BRIDGE_HUB.baseToken(_chain_id),
         l2_gas_limit=2 * 10 ** 6,  # Create token if necessary + transfers
         l2_gas_price_limit=800,
         refund_recipient=empty(address),
         allow_custom_refund=True,
     )
-    self.destination_data[0] = default_data
-    log SetDestinationData(0, default_data)
+    assert default_data.base_token != empty(IERC20), "baseToken not set"
+    self.destination_data = default_data
+    log SetDestinationData(default_data)
+
+    crv: IERC20 = IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52)
+    assert extcall crv.approve(default_data.bridge, max_value(uint256))
 
     ownable.__init__()
 
@@ -100,27 +102,12 @@ def _receive_token(token: IERC20, amount: uint256) -> uint256:
 
 
 @internal
-def _fetch_destination_data(chain_id: uint256) -> DestinationData:
+@view
+def _applied_destination_data() -> DestinationData:
     """
-    @notice Try fetching default parameters if nothing set
+    @notice Apply manual parameters to destiantion data
     """
-    data: DestinationData = self.destination_data[chain_id]
-    if data.bridge == empty(address):
-        data = self.destination_data[0]  # default
-        data.base_token = staticcall BRIDGE_HUB.baseToken(chain_id)
-        assert data.base_token != empty(IERC20), "baseToken not set"
-
-        self.destination_data[chain_id] = data  # Update for future uses
-        log SetDestinationData(chain_id, data)
-    return data
-
-
-@internal
-def _applied_destination_data(chain_id: uint256) -> (DestinationData, uint256):
-    """
-    @notice Fetch destination data and apply manual parameters
-    """
-    data: DestinationData = self._fetch_destination_data(chain_id)
+    data: DestinationData = self.destination_data
 
     l2_gas_price_limit: uint256 = self.manual_parameters.l2GasPerPubdataByteLimit
     if l2_gas_price_limit > 0:
@@ -131,23 +118,15 @@ def _applied_destination_data(chain_id: uint256) -> (DestinationData, uint256):
         if refund_recipient != empty(address):
             data.refund_recipient = refund_recipient
 
-    gas_value: uint256 = self.balance
-    if data.base_token.address != ZK_SYNC_ETH_ADDRESS:
-        gas_value = self.manual_parameters.gas_value
-        assert extcall data.base_token.transferFrom(msg.sender, self, gas_value, default_return_value=True)
-        if staticcall data.base_token.allowance(self, data.bridge) < gas_value:
-            extcall data.base_token.approve(data.bridge, max_value(uint256))
-
-    return data, gas_value
+    return data
 
 
 @external
 @payable
-def bridge(_chain_id: uint256, _token: IERC20, _to: address, _amount: uint256, _min_amount: uint256=0) -> uint256:
+def bridge(_token: IERC20, _to: address, _amount: uint256, _min_amount: uint256=0) -> uint256:
     """
     @notice Bridge a token to zkSync using BridgedHub with SharedBridge.
         Might need manual parameters change from bridge initiator.
-    @param _chain_id Chain ID of L2 (e.g. 324)
     @param _token The token to bridge (base token is not supported)
     @param _to The address to deposit the token to on L2
     @param _amount The amount of the token to deposit, 2^256-1 for the whole available balance
@@ -157,16 +136,23 @@ def bridge(_chain_id: uint256, _token: IERC20, _to: address, _amount: uint256, _
     amount: uint256 = self._receive_token(_token, _amount)
     assert amount >= _min_amount, "Amount too small"
 
-    data: DestinationData = empty(DestinationData)
-    gas_value: uint256 = 0
-    data, gas_value = self._applied_destination_data(_chain_id)
+    data: DestinationData = self._applied_destination_data()
 
     if staticcall _token.allowance(self, data.bridge) < amount:
         extcall _token.approve(data.bridge, max_value(uint256))
 
+    gas_value: uint256 = self.balance
+    if data.base_token.address != ZK_SYNC_ETH_ADDRESS:
+        gas_value = self.manual_parameters.gas_value
+        if staticcall data.base_token.balanceOf(self) < gas_value:
+            # gas expenses not transferred before call, so trying to fetch them from sender
+            assert extcall data.base_token.transferFrom(msg.sender, self, gas_value, default_return_value=True)
+        if staticcall data.base_token.allowance(self, data.bridge) < gas_value:
+            extcall data.base_token.approve(data.bridge, max_value(uint256))
+
     extcall BRIDGE_HUB.requestL2TransactionTwoBridges(
         L2TransactionRequestTwoBridgesOuter(
-            chainId=_chain_id,
+            chainId=CHAIN_ID,
             mintValue=gas_value,
             l2Value=0,
             l2GasLimit=data.l2_gas_limit,
@@ -193,11 +179,19 @@ def check(_account: address) -> bool:
 
 @view
 @external
-def cost(_chain_id: uint256) -> uint256:
+def cost(_basefee: uint256=block.basefee) -> uint256:
     """
-    @notice Cost in ETH to bridge. Not supported
+    @notice Cost in ETH to bridge
     """
-    return 0
+    l2_gas_price_limit: uint256 = self.manual_parameters.l2GasPerPubdataByteLimit
+    if l2_gas_price_limit == 0:
+        l2_gas_price_limit = self.destination_data.l2_gas_price_limit
+    return staticcall BRIDGE_HUB.l2TransactionBaseCost(
+        CHAIN_ID,
+        _basefee,
+        self.destination_data.l2_gas_limit,
+        l2_gas_price_limit,
+    )
 
 
 @external
@@ -209,14 +203,14 @@ def set_manual_parameters(_manual_parameters: ManualParameters):
 
 
 @external
-def set_destination_data(_chain_id: uint256, _destination_data: DestinationData):
+def set_destination_data(_destination_data: DestinationData):
     """
     @notice Set custom destination data. In order to turn off chain id set bridge=0xdead
     """
     ownable._check_owner()
 
-    self.destination_data[_chain_id] = _destination_data
-    log SetDestinationData(_chain_id, _destination_data)
+    self.destination_data = _destination_data
+    log SetDestinationData(_destination_data)
 
 
 @external
