@@ -144,7 +144,10 @@ def bridge(_token: IERC20, _to: address, _amount: uint256, _min_amount: uint256=
     gas_value: uint256 = self.balance
     if data.base_token.address != ZK_SYNC_ETH_ADDRESS:
         gas_value = self.manual_parameters.gas_value
-        if staticcall data.base_token.balanceOf(self) < gas_value:
+        gas_balance: uint256 = staticcall data.base_token.balanceOf(self)
+        if gas_value == 0:
+            gas_value = gas_balance
+        elif gas_balance < gas_value:
             # gas expenses not transferred before call, so trying to fetch them from sender
             assert extcall data.base_token.transferFrom(msg.sender, self, gas_value, default_return_value=True)
         if staticcall data.base_token.allowance(self, data.bridge) < gas_value:
@@ -179,11 +182,13 @@ def check(_account: address) -> bool:
 
 @view
 @external
-def cost(_basefee: uint256=block.basefee) -> uint256:
+def cost(_basefee: uint256=block.basefee, _l2GasPerPubdataByteLimit: uint256=0) -> uint256:
     """
     @notice Cost in ETH to bridge
     """
-    l2_gas_price_limit: uint256 = self.manual_parameters.l2GasPerPubdataByteLimit
+    l2_gas_price_limit: uint256 = _l2GasPerPubdataByteLimit
+    if l2_gas_price_limit == 0:
+        l2_gas_price_limit = self.manual_parameters.l2GasPerPubdataByteLimit
     if l2_gas_price_limit == 0:
         l2_gas_price_limit = self.destination_data.l2_gas_price_limit
     return staticcall BRIDGE_HUB.l2TransactionBaseCost(
@@ -198,6 +203,7 @@ def cost(_basefee: uint256=block.basefee) -> uint256:
 def set_manual_parameters(_manual_parameters: ManualParameters):
     """
     @notice Set manual parameters that will be actual within current transaction
+    @param _manual_parameters (l2GasPerPubdataByteLimit, refund_recipient if allowed, gas_value if needs to be transferred in)
     """
     self.manual_parameters = _manual_parameters
 
