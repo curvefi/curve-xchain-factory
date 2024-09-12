@@ -40,11 +40,6 @@ def reward_token(alice):
 
 
 @pytest.fixture(scope="module")
-def reward_token_8(alice):
-    return ERC20("Dummy Reward Token", "dRT", 8, deployer=alice)
-
-
-@pytest.fixture(scope="module")
 def unauthorised_token(alice):
     """This is for testing unauthorised token"""
     return ERC20("Dummy Unauthorised Reward Token", "dURT", 18, deployer=alice)
