@@ -584,23 +584,33 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
 
 @external
 @nonreentrant("lock")
-def deposit_reward_token(_reward_token: address, _amount: uint256):
+def deposit_reward_token(_reward_token: address, _amount: uint256, _epoch: uint256 = WEEK):
     assert msg.sender == self.reward_data[_reward_token].distributor
 
     self._checkpoint_rewards(empty(address), self.totalSupply, False, empty(address))
 
-    assert ERC20(_reward_token).transferFrom(msg.sender, self, _amount, default_return_value=True)
+    # transferFrom reward token and use transferred amount henceforth:
+    amount_received: uint256 = ERC20(_reward_token).balanceOf(self)
+    assert ERC20(_reward_token).transferFrom(
+        msg.sender,
+        self,
+        _amount,
+        default_return_value=True
+    )
+    amount_received = ERC20(_reward_token).balanceOf(self) - amount_received
 
     period_finish: uint256 = self.reward_data[_reward_token].period_finish
+    assert amount_received > _epoch  # dev: rate will tend to zero!
+
     if block.timestamp >= period_finish:
-        self.reward_data[_reward_token].rate = _amount / WEEK
+        self.reward_data[_reward_token].rate = amount_received / _epoch
     else:
         remaining: uint256 = period_finish - block.timestamp
         leftover: uint256 = remaining * self.reward_data[_reward_token].rate
-        self.reward_data[_reward_token].rate = (_amount + leftover) / WEEK
+        self.reward_data[_reward_token].rate = (amount_received + leftover) / _epoch
 
     self.reward_data[_reward_token].last_update = block.timestamp
-    self.reward_data[_reward_token].period_finish = block.timestamp + WEEK
+    self.reward_data[_reward_token].period_finish = block.timestamp + _epoch
 
 
 @external
