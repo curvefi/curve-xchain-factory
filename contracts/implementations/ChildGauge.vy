@@ -230,6 +230,9 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
             if _total_supply != 0:
                 integral += duration * self.reward_data[token].rate * 10**18 / _total_supply
                 self.reward_data[token].integral = integral
+            else:
+                # Return not distributed back
+                self.claim_data[data.distributor][i] += shift(duration * self.reward_data[token].rate, 128)
 
         if _user != empty(address):
             integral_for: uint256 = self.reward_integral_for[token][_user]
