@@ -232,7 +232,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                 self.reward_data[token].integral = integral
             else:
                 # Return not distributed back
-                self.claim_data[data.distributor][i] += shift(duration * self.reward_data[token].rate, 128)
+                self.claim_data[self.reward_data[token].distributor][token] += shift(duration * self.reward_data[token].rate, 128)
 
         if _user != empty(address):
             integral_for: uint256 = self.reward_integral_for[token][_user]
@@ -561,7 +561,7 @@ def add_reward(_reward_token: address, _distributor: address):
     @notice Set the active reward contract
     """
     assert msg.sender == self.manager or msg.sender == FACTORY.owner()
-    assert _reward_token != FACTORY.crv()
+    assert _reward_token != FACTORY.crv().address
 
     reward_count: uint256 = self.reward_count
     assert reward_count < MAX_REWARDS
