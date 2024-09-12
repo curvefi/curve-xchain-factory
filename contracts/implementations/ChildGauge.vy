@@ -561,6 +561,7 @@ def add_reward(_reward_token: address, _distributor: address):
     @notice Set the active reward contract
     """
     assert msg.sender == self.manager or msg.sender == FACTORY.owner()
+    assert _reward_token != FACTORY.crv()
 
     reward_count: uint256 = self.reward_count
     assert reward_count < MAX_REWARDS
