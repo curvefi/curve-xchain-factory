@@ -16,6 +16,9 @@ implements: ERC20
 interface ERC20Extended:
     def symbol() -> String[32]: view
 
+interface ERC1271:
+    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
+
 interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
@@ -69,7 +72,7 @@ VERSION: constant(String[8]) = "1.0.0"
 
 EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 EIP2612_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
-
+ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 
 voting_escrow: public(address)
 
@@ -371,11 +374,13 @@ def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool =
 
 @external
 @nonreentrant('lock')
-def withdraw(_value: uint256, _claim_rewards: bool = False):
+def withdraw(_value: uint256, _claim_rewards: bool = False, _receiver: address = msg.sender):
     """
     @notice Withdraw `_value` LP tokens
     @dev Withdrawing also claims pending reward tokens
     @param _value Number of tokens to withdraw
+    @param _claim_rewards Whether to claim rewards
+    @param _receiver Receiver of withdrawn LP tokens
     """
     self._checkpoint(msg.sender)
 
@@ -392,7 +397,7 @@ def withdraw(_value: uint256, _claim_rewards: bool = False):
 
         self._update_liquidity_limit(msg.sender, new_balance, total_supply)
 
-        ERC20(self.lp_token).transfer(msg.sender, _value)
+        ERC20(self.lp_token).transfer(_receiver, _value)
 
     log Withdraw(msg.sender, _value)
     log Transfer(msg.sender, empty(address), _value)
@@ -506,7 +511,11 @@ def permit(
             ),
         )
     )
-    assert ecrecover(digest, _v, _r, _s) == _owner  # dev: invalid signature
+    if _owner.is_contract:
+        sig: Bytes[65] = concat(_abi_encode(_r, _s), slice(convert(_v, bytes32), 31, 1))
+        assert ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL  # dev: invalid signature
+    else:
+        assert ecrecover(digest, _v, _r, _s) == _owner  # dev: invalid signature
 
     self.allowance[_owner][_spender] = _value
     self.nonces[_owner] = unsafe_add(nonce, 1)
@@ -698,7 +707,7 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
 def set_killed(_is_killed: bool):
     """
     @notice Set the killed status for this contract
-    @dev When killed, the gauge always yields a rate of 0 and so cannot mint CRV
+    @dev Nothing happens, just stop emissions and that's it
     @param _is_killed Killed status to set
     """
     assert msg.sender == FACTORY.owner()  # dev: only owner
