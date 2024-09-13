@@ -166,7 +166,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
 
     gauge_data: uint256 = 1  # set is_valid_gauge = True
     implementation: address = self.get_implementation
-    salt: bytes32 = keccak256(_abi_encode(chain.id, msg.sender, _salt))
+    salt: bytes32 = keccak256(_abi_encode(chain.id, _salt))
     gauge: address = create_minimal_proxy_to(
         implementation, salt=salt
     )
