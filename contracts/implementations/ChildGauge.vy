@@ -16,9 +16,6 @@ implements: ERC20
 interface ERC20Extended:
     def symbol() -> String[32]: view
 
-interface ERC1271:
-    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
-
 interface Factory:
     def owner() -> address: view
     def voting_escrow() -> address: view
@@ -134,7 +131,7 @@ period_timestamp: public(HashMap[int128, uint256])
 # 1e18 * ∫(rate(t) / totalSupply(t) dt) from 0 till checkpoint
 integrate_inv_supply: public(HashMap[int128, uint256])
 
-# custom xchain parameters
+# xchain specific
 root_gauge: public(address)
 
 
@@ -207,14 +204,13 @@ def _checkpoint(_user: address):
             week_time = min(week_time + WEEK, block.timestamp)
 
     # check CRV balance and increase weekly inflation rate by delta for the rest of the week
-    crv_balance: uint256 = 0
     crv: ERC20 = FACTORY.crv()
     if crv != empty(ERC20):
-        crv_balance = crv.balanceOf(self)
-    if crv_balance != 0:
-        current_week: uint256 = block.timestamp / WEEK
-        self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
-        crv.transfer(FACTORY.address, crv_balance)
+        crv_balance: uint256 = crv.balanceOf(self)
+        if crv_balance != 0:
+            current_week: uint256 = block.timestamp / WEEK
+            self.inflation_rate[current_week] += crv_balance / ((current_week + 1) * WEEK - block.timestamp)
+            crv.transfer(FACTORY.address, crv_balance)
 
     period += 1
     self.period = period
@@ -670,6 +666,7 @@ def add_reward(_reward_token: address, _distributor: address):
     @param _distributor Address permitted to fund this contract with the reward token
     """
     assert msg.sender in [self.manager, FACTORY.owner()]  # dev: only manager or factory admin
+    assert _reward_token != FACTORY.crv().address  # dev: can not distinguish CRV reward from CRV emission
     assert _distributor != empty(address)  # dev: distributor cannot be zero address
 
     reward_count: uint256 = self.reward_count
@@ -809,4 +806,7 @@ def version() -> String[8]:
 @view
 @external
 def factory() -> Factory:
+    """
+    @notice Get factory of this gauge
+    """
     return FACTORY
