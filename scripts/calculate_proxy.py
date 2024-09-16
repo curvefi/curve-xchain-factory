@@ -41,12 +41,12 @@ def create2_address_of(_addr, _salt, _initcode):
     return to_address(keccak(prefix + addr + salt + keccak(initcode))[12:])
 
 
-def main(_chain_id: str, _deployer: str, _salt: str):
+def main(_chain_id: str, _salt: str):
     factory = RootGaugeFactory.at("0xabC000d88f23Bb45525E447528DBF656A9D55bf5")
     implementation_addr = factory.get_implementation()
 
     init_code = vyper_proxy_init_code(implementation_addr)
     salt = keccak(
-        encode_single("(uint256,address,bytes32)", [int(_chain_id), _deployer, HexBytes(_salt)])
+        encode_single("(uint256,bytes32)", [int(_chain_id), HexBytes(_salt)])
     )
     print(create2_address_of(factory.address, salt, init_code))

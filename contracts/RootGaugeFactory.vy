@@ -114,7 +114,7 @@ def deploy_gauge(_chain_id: uint256, _salt: bytes32) -> RootGauge:
     assert bridger != empty(Bridger)  # dev: chain id not supported
 
     implementation: address = self.get_implementation
-    salt: bytes32 = keccak256(_abi_encode(_chain_id, msg.sender, _salt))
+    salt: bytes32 = keccak256(_abi_encode(_chain_id, _salt))
     gauge: RootGauge = RootGauge(create_minimal_proxy_to(
         implementation,
         value=msg.value,

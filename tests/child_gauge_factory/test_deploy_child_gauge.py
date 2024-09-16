@@ -16,7 +16,7 @@ def test_deploy_child_gauge(
 ):
     proxy_init_code = vyper_proxy_init_code(child_gauge_impl.address)
     salt = encode(
-        ["(uint256,address,bytes32)"], [(chain.id, alice.address, (0).to_bytes(32, "big"))]
+        ["(uint256,bytes32)"], [(chain.id, (0).to_bytes(32, "big"))]
     )
     expected = create2_address_of(child_gauge_factory.address, web3.keccak(salt), proxy_init_code)
 
