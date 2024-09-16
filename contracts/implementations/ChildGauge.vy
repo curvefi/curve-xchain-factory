@@ -1,10 +1,11 @@
-# pragma version 0.3.7
+# pragma version 0.3.10
 # pragma optimize gas
 """
 @title CurveXChainLiquidityGauge
 @license Copyright (c) Curve.Fi, 2020-2024 - all rights reserved
 @author Curve.Fi
 @notice Layer2/Cross-Chain Gauge
+@custom:version 1.0.0
 """
 
 

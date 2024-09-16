@@ -1,10 +1,13 @@
-# @version 0.3.1
+# pragma version 0.3.10
 """
 @title ProxyAdmin
 @notice Thin proxy allowing shared ownership of contracts
 @author Ben Hauser
 @license MIT
+@custom:version 0.0.1
 """
+
+version: public(constant(String[8])) = "0.0.1"
 
 
 event TransactionExecuted:

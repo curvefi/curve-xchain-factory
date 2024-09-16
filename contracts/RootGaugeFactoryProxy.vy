@@ -1,8 +1,9 @@
-# pragma version 0.3.7
+# pragma version 0.3.10
 """
 @title Root Gauge Factory Proxy Owner
 @license MIT
 @author CurveFi
+@custom:version 1.0.1
 """
 
 version: public(constant(String[8])) = "1.0.1"

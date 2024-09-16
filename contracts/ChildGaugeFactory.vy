@@ -1,8 +1,9 @@
-# @version 0.3.7
+# pragma version 0.3.10
 """
 @title Child Liquidity Gauge Factory
 @license MIT
 @author Curve Finance
+@custom:version 2.0.0
 """
 
 version: public(constant(String[8])) = "2.0.0"
@@ -108,7 +109,7 @@ def _psuedo_mint(_gauge: address, _user: address):
     assert gauge_data != 0  # dev: invalid gauge
 
     # if is_mirrored and last_request != this week
-    if bitwise_and(gauge_data, 2) != 0 and shift(gauge_data, -2) / WEEK != block.timestamp / WEEK:
+    if gauge_data & 2 != 0 and (gauge_data >> 2) / WEEK != block.timestamp / WEEK:
         CallProxy(self.call_proxy).anyCall(
             self,
             _abi_encode(_gauge, method_id=method_id("transmit_emissions(address)")),
@@ -116,7 +117,7 @@ def _psuedo_mint(_gauge: address, _user: address):
             1,
         )
         # update last request time
-        self.gauge_data[_gauge] = shift(block.timestamp, 2) + 3
+        self.gauge_data[_gauge] = block.timestamp << 2 + 3
 
     assert ChildGauge(_gauge).user_checkpoint(_user)
     total_mint: uint256 = ChildGauge(_gauge).integrate_fraction(_user)
@@ -257,7 +258,7 @@ def set_mirrored(_gauge: address, _mirrored: bool):
     assert gauge_data != 0  # dev: invalid gauge
     assert msg.sender == self.owner  # dev: only owner
 
-    gauge_data = shift(shift(gauge_data, -2), 2) + 1  # set is_valid_gauge = True
+    gauge_data = gauge_data | 1  # set is_valid_gauge = True
     if _mirrored:
         gauge_data += 2  # set is_mirrored = True
 
@@ -328,4 +329,4 @@ def last_request(_gauge: address) -> uint256:
     @notice Query the timestamp of the last cross chain request for emissions
     @param _gauge The address of the gauge of interest
     """
-    return shift(self.gauge_data[_gauge], -2)
+    return self.gauge_data[_gauge] >> 2

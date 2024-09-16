@@ -1,4 +1,4 @@
-# @version 0.3.1
+# pragma version 0.3.10
 
 
 interface AnyCall:
@@ -43,4 +43,12 @@ def __init__(_params: GaugeParams[N_GAUGES]):
 
     # increase execution budget for future callbacks used in deployment process
     AnyCall(ANYCALL).deposit(FACTORY, value=as_wei_value(2, "ether"))
-    selfdestruct(msg.sender)
+    send(msg.sender, self.balance)
+
+
+@external
+def dummy() -> uint256:
+    """
+    @dev Dummy method for brownie not to fail
+    """
+    return max_value(uint256)
