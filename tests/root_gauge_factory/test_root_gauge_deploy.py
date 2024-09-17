@@ -47,6 +47,10 @@ def test_transmit_emissions(alice, root_gauge_factory):
 def transmit_emissions():
     pass
 
+@external
+def user_checkpoint(_user: address) -> bool:
+    return True
+
 @view
 @external
 def bridger() -> address:
@@ -61,6 +65,11 @@ def check(_addr: address) -> bool:
     tx = root_gauge_factory.transmit_emissions(mock, {"from": alice})
 
     assert tx.subcalls[2]["function"] == "transmit_emissions()"
+
+    tx = root_gauge_factory.transmit_emissions(mock, True, {"from": alice})
+
+    assert tx.subcalls[2]["function"] == "user_checkpoint(address)"
+    assert tx.subcalls[3]["function"] == "transmit_emissions()"
 
 
 def test_deploy_gauge(alice, chain, root_gauge_factory, child_gauge_factory, mock_bridger):

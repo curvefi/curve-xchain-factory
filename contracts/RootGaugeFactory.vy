@@ -6,7 +6,7 @@
 @custom:version 1.0.1
 """
 
-version: public(constant(String[8])) = "1.0.1"
+version: public(constant(String[8])) = "1.0.2"
 
 
 interface Bridger:
@@ -16,6 +16,7 @@ interface RootGauge:
     def bridger() -> Bridger: view
     def initialize(_bridger: Bridger, _chain_id: uint256, _child: address): nonpayable
     def transmit_emissions(): nonpayable
+    def user_checkpoint(_user: address) -> bool: nonpayable
 
 interface CallProxy:
     def anyCall(
@@ -72,10 +73,10 @@ def __init__(_call_proxy: CallProxy, _owner: address):
 
 
 @external
-def transmit_emissions(_gauge: RootGauge):
+def transmit_emissions(_gauge: RootGauge, _checkpoint: bool=False):
     """
     @notice Call `transmit_emissions` on a root gauge
-    @dev Entrypoint for anycall to request emissions for a child gauge.
+    @dev Entrypoint to request emissions for a child gauge.
         The way that gauges work, this can also be called on the root
         chain without a request.
     """
@@ -83,6 +84,8 @@ def transmit_emissions(_gauge: RootGauge):
     # for special bridges *cough cough Multichain, we can only do
     # one bridge per tx, therefore this will verify msg.sender in [tx.origin, self.call_proxy]
     assert _gauge.bridger().check(msg.sender)
+    if _checkpoint:
+        _gauge.user_checkpoint(empty(address))
     _gauge.transmit_emissions()
 
 
