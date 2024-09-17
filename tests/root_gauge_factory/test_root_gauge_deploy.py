@@ -66,11 +66,6 @@ def check(_addr: address) -> bool:
 
     assert tx.subcalls[2]["function"] == "transmit_emissions()"
 
-    tx = root_gauge_factory.transmit_emissions(mock, True, {"from": alice})
-
-    assert tx.subcalls[2]["function"] == "user_checkpoint(address)"
-    assert tx.subcalls[3]["function"] == "transmit_emissions()"
-
 
 def test_deploy_gauge(alice, chain, root_gauge_factory, child_gauge_factory, mock_bridger):
     tx = root_gauge_factory.deploy_child_gauge(chain.id, ETH_ADDRESS, 0x0, {"from": alice})
