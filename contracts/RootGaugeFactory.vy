@@ -3,7 +3,7 @@
 @title Root Liquidity Gauge Factory
 @license MIT
 @author Curve Finance
-@custom:version 1.0.1
+@custom:version 1.0.2
 """
 
 version: public(constant(String[8])) = "1.0.2"
