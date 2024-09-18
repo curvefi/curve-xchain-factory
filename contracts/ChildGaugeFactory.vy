@@ -42,6 +42,13 @@ event UpdateVotingEscrow:
     _old_voting_escrow: address
     _new_voting_escrow: address
 
+event UpdateRoot:
+    _factory: address
+    _implementation: address
+
+event UpdateManager:
+    _manager: address
+
 event UpdateCallProxy:
     _old_call_proxy: address
     _new_call_proxy: address
@@ -66,9 +73,10 @@ voting_escrow: public(address)
 
 owner: public(address)
 future_owner: public(address)
+manager: public(address)
 
 root_factory: public(address)
-root_implementation: bytes20
+root_implementation: public(address)
 call_proxy: public(address)
 # [last_request][has_counterpart][is_valid_gauge]
 gauge_data: public(HashMap[address, uint256])
@@ -97,10 +105,14 @@ def __init__(_call_proxy: address, _root_factory: address, _root_impl: address, 
     assert _root_factory != empty(address)
     assert _root_impl != empty(address)
     self.root_factory = _root_factory
-    self.root_implementation = convert(_root_impl, bytes20)
+    self.root_implementation = _root_impl
+    log UpdateRoot(_root_factory, _root_impl)
 
     self.owner = _owner
     log TransferOwnership(empty(address), _owner)
+
+    self.manager = msg.sender
+    log UpdateManager(msg.sender)
 
 
 @internal
@@ -158,8 +170,8 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     """
     @notice Deploy a liquidity gauge
     @param _lp_token The token to deposit in the gauge
-    @param _manager The address to set as manager of the gauge
     @param _salt A value to deterministically deploy a gauge
+    @param _manager The address to set as manager of the gauge
     """
     if self.get_gauge_from_lp_token[_lp_token] != empty(address):
         # overwriting lp_token -> gauge mapping requires
@@ -194,7 +206,7 @@ def deploy_gauge(_lp_token: address, _salt: bytes32, _manager: address = msg.sen
     gauge_codehash: bytes32 = keccak256(
         concat(
             0x602d3d8160093d39f3363d3d373d3d3d363d73,
-            self.root_implementation,
+            convert(self.root_implementation, bytes20),
             0x5af43d82803e903d91602b57fd5bf3,
         )
     )
@@ -221,6 +233,21 @@ def set_crv(_crv: ERC20):
     assert _crv != empty(ERC20)
 
     self.crv = _crv
+
+
+@external
+def set_root(_factory: address, _implementation: address):
+    """
+    @notice Update root addresses
+    @dev Addresses are used only as helper methods
+    @param _factory Root gauge factory
+    @param _implementation Root gauge
+    """
+    assert msg.sender in [self.owner, self.manager]  # dev: access denied
+
+    self.root_factory = _factory
+    self.root_implementation = _implementation
+    log UpdateRoot(_factory, _implementation)
 
 
 @external
@@ -277,6 +304,14 @@ def set_call_proxy(_new_call_proxy: address):
 
     log UpdateCallProxy(self.call_proxy, _new_call_proxy)
     self.call_proxy = _new_call_proxy
+
+
+@external
+def set_manager(_new_manager: address):
+    assert msg.sender in [self.owner, self.manager]  # dev: access denied
+
+    self.manager = _new_manager
+    log UpdateManager(_new_manager)
 
 
 @external

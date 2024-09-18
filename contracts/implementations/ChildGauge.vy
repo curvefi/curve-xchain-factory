@@ -22,6 +22,7 @@ interface ERC1271:
 
 interface Factory:
     def owner() -> address: view
+    def manager() -> address: view
     def voting_escrow() -> address: view
     def minted(_user: address, _gauge: address) -> uint256: view
     def crv() -> ERC20: view
@@ -722,7 +723,7 @@ def set_root_gauge(_root: address):
     @notice Set Root contract in case something went wrong (e.g. between implementation updates)
     @param _root Root gauge to set
     """
-    assert msg.sender == FACTORY.owner()
+    assert msg.sender in [FACTORY.owner(), FACTORY.manager()]
     assert _root != empty(address)
 
     self.root_gauge = _root
