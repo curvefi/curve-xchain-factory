@@ -10,9 +10,9 @@ interface PolygonZkEVMBridge:
 
 
 CRV20: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-L1_BRIDGE: immutable(PolygonZkEVMBridge)
+L1_BRIDGE: public(immutable(PolygonZkEVMBridge))
 
-DESTINATION_NETWORK: immutable(uint32)
+DESTINATION_NETWORK: public(immutable(uint32))
 
 
 @external
