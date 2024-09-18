@@ -277,14 +277,14 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                 new_claimable = user_balance * (integral - integral_for) / 10**18
 
             claim_data: uint256 = self.claim_data[_user][token]
-            total_claimable: uint256 = shift(claim_data, -128) + new_claimable
+            total_claimable: uint256 = (claim_data >> 128) + new_claimable
             if total_claimable > 0:
                 total_claimed: uint256 = claim_data % 2**128
                 if _claim:
                     assert ERC20(token).transfer(receiver, total_claimable, default_return_value=True)
                     self.claim_data[_user][token] = total_claimed + total_claimable
                 elif new_claimable > 0:
-                    self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
+                    self.claim_data[_user][token] = total_claimed + (total_claimable << 128)
 
 
 @internal
@@ -771,7 +771,7 @@ def claimable_reward(_user: address, _reward_token: address) -> uint256:
     integral_for: uint256 = self.reward_integral_for[_reward_token][_user]
     new_claimable: uint256 = self.balanceOf[_user] * (integral - integral_for) / 10**18
 
-    return shift(self.claim_data[_user][_reward_token], -128) + new_claimable
+    return (self.claim_data[_user][_reward_token] >> 128) + new_claimable
 
 
 @external
