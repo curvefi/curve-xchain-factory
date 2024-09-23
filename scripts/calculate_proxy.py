@@ -42,7 +42,7 @@ def create2_address_of(_addr, _salt, _initcode):
 
 
 def main(_chain_id: str, _salt: str):
-    factory = RootGaugeFactory.at("0xabC000d88f23Bb45525E447528DBF656A9D55bf5")
+    factory = RootGaugeFactory.at("0x306A45a1478A000dC701A6e1f7a569afb8D9DCD6")
     implementation_addr = factory.get_implementation()
 
     init_code = vyper_proxy_init_code(implementation_addr)
