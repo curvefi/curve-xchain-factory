@@ -1,0 +1,42 @@
+# pragma version ~=0.4.0
+"""
+@title Curve Bridge Adapter
+@license MIT
+@author CurveFi
+@notice Interface mainly used for bridging Curve emissions to L2s and collected fees to Ethereum.
+"""
+
+from ethereum.ercs import IERC20
+
+
+@external
+@payable
+def bridge(_token: IERC20, _to: address, _amount: uint256, _min_amount: uint256=0) -> uint256:
+    """
+    @notice Bridge `_token`
+    @param _token The ERC20 asset to bridge
+    @param _to The receiver on `_chain_id`
+    @param _amount The amount of `_token` to deposit, 2^256-1 for the whole balance
+    @param _min_amount Minimum amount when to bridge
+    @return Bridged amount
+    """
+    ...
+
+
+@view
+@external
+def check(_account: address) -> bool:
+    """
+    @notice Check if `_account` may bridge via `transmit_emissions`
+    @param _account The account to check
+    """
+    ...
+
+
+@view
+@external
+def cost() -> uint256:
+    """
+    @notice Cost in ETH to bridge, not all chains are supported
+    """
+    ...
