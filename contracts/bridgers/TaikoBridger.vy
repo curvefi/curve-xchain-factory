@@ -84,7 +84,10 @@ def __init__(_chain_id: uint256, _dest_owner: address):
     ownable.__init__()
 
 
-exports: ownable.transfer_ownership
+exports: (
+    ownable.owner,
+    ownable.transfer_ownership,
+)
 
 
 @external
