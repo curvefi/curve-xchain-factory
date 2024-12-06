@@ -10,10 +10,11 @@
 
 
 from vyper.interfaces import ERC20
-from vyper.interfaces import ERC20Detailed
 
 implements: ERC20
 
+interface ERC20Extended:
+    def symbol() -> String[32]: view
 
 interface ERC1271:
     def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
@@ -177,7 +178,7 @@ def initialize(_lp_token: address, _root: address, _manager: address):
 
     self.voting_escrow = Factory(msg.sender).voting_escrow()
 
-    symbol: String[32] = ERC20Detailed(_lp_token).symbol()
+    symbol: String[32] = ERC20Extended(_lp_token).symbol()
     name: String[64] = concat("Curve.fi ", symbol, " Gauge Deposit")
 
     self.name = name
