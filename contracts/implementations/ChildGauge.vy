@@ -151,6 +151,10 @@ root_gauge: public(address)
 
 @external
 def __init__(_factory: Factory):
+    """
+    @notice Deployer
+    @param _factory Factory for deploying this gauge
+    """
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
     FACTORY = _factory
@@ -158,6 +162,12 @@ def __init__(_factory: Factory):
 
 @external
 def initialize(_lp_token: address, _root: address, _manager: address):
+    """
+    @notice Initiailize contract created as proxy
+    @param _lp_token Token to lock in
+    @param _root Address of mirror Root gauge
+    @param _manager Manager of rewards for the gauge
+    """
     assert self.lp_token == empty(address)  # dev: already initialized
 
     self.lp_token = _lp_token
@@ -361,6 +371,7 @@ def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool =
     @dev Depositting also claims pending reward tokens
     @param _value Number of tokens to deposit
     @param _addr Address to deposit for
+    @param _claim_rewards Whether to claim already accrued rewards
     """
     assert _addr != empty(address)  # dev: cannot deposit for zero address
     self._checkpoint(_addr)
@@ -434,11 +445,12 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = empty(addres
 @nonreentrant('lock')
 def transferFrom(_from: address, _to :address, _value: uint256) -> bool:
     """
-     @notice Transfer tokens from one address to another.
-     @dev Transferring claims pending reward tokens for the sender and receiver
-     @param _from address The address which you want to send tokens from
-     @param _to address The address which you want to transfer to
-     @param _value uint256 the amount of tokens to be transferred
+    @notice Transfer tokens from one address to another.
+    @dev Transferring claims pending reward tokens for the sender and receiver
+    @param _from address The address which you want to send tokens from
+    @param _to address The address which you want to transfer to
+    @param _value uint256 the amount of tokens to be transferred
+    @return True if transfer passed
     """
     _allowance: uint256 = self.allowance[_from][msg.sender]
     if _allowance != max_value(uint256):
@@ -457,6 +469,7 @@ def transfer(_to: address, _value: uint256) -> bool:
     @dev Transferring claims pending reward tokens for the sender and receiver
     @param _to The address to transfer to.
     @param _value The amount to be transferred.
+    @return True if transfer passed
     """
     self._transfer(msg.sender, _to, _value)
 
@@ -794,6 +807,7 @@ def claimable_tokens(addr: address) -> uint256:
     """
     @notice Get the number of claimable tokens per user
     @dev This function should be manually changed to "view" in the ABI
+    @param addr User to check for
     @return uint256 number of claimable tokens per user
     """
     self._checkpoint(addr)
@@ -805,6 +819,7 @@ def claimable_tokens(addr: address) -> uint256:
 def integrate_checkpoint() -> uint256:
     """
     @notice Get the timestamp of the last checkpoint
+    @return Integral value
     """
     return self.period_timestamp[self.period]
 
@@ -825,6 +840,7 @@ def decimals() -> uint8:
 def version() -> String[8]:
     """
     @notice Get the version of this gauge contract
+    @return Version in x.x.x format
     """
     return VERSION
 
@@ -834,5 +850,6 @@ def version() -> String[8]:
 def factory() -> Factory:
     """
     @notice Get factory of this gauge
+    @return address of factory
     """
     return FACTORY
