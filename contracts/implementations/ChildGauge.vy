@@ -109,7 +109,7 @@ rewards_receiver: public(HashMap[address, address])
 # reward token -> claiming address -> integral
 reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
 
-# user -> [uint128 claimable amount][uint128 claimed amount]
+# user -> token -> [uint128 claimable amount][uint128 claimed amount]
 claim_data: HashMap[address, HashMap[address, uint256]]
 
 working_balances: public(HashMap[address, uint256])
@@ -289,7 +289,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
 def _update_liquidity_limit(_user: address, _user_balance: uint256, _total_supply: uint256):
     """
     @notice Calculate working balances to apply amplification of CRV production.
-    @dev https://resources.curve.fi/guides/boosting-your-crv-rewards#formula
+    @dev https://resources.curve.fi/reward-gauges/boosting-your-crv-rewards/#boost-info
     @param _user The user address
     @param _user_balance User's amount of liquidity (LP tokens)
     @param _total_supply Total amount of liquidity (LP tokens)
