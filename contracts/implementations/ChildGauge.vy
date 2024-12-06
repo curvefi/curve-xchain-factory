@@ -34,6 +34,17 @@ event Withdraw:
     provider: indexed(address)
     value: uint256
 
+event AddReward:
+    reward: address
+    index: uint256
+
+event SetDistributor:
+    reward: address
+    distributor: address
+
+event SetKilled:
+    is_killed: bool
+
 event UpdateLiquidityLimit:
     user: indexed(address)
     original_balance: uint256
@@ -152,6 +163,7 @@ def initialize(_lp_token: address, _root: address, _manager: address):
     self.lp_token = _lp_token
     self.root_gauge = _root
     self.manager = _manager
+    log SetGaugeManager(_manager)
 
     self.voting_escrow = Factory(msg.sender).voting_escrow()
 
@@ -686,6 +698,8 @@ def add_reward(_reward_token: address, _distributor: address):
     self.reward_data[_reward_token].distributor = _distributor
     self.reward_tokens[reward_count] = _reward_token
     self.reward_count = reward_count + 1
+    log AddReward(_reward_token, reward_count)
+    log SetDistributor(_reward_token, _distributor)
 
 
 @external
@@ -702,6 +716,7 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
     assert _distributor != empty(address)
 
     self.reward_data[_reward_token].distributor = _distributor
+    log SetDistributor(_reward_token, _distributor)
 
 
 @external
@@ -714,6 +729,7 @@ def set_killed(_is_killed: bool):
     assert msg.sender == FACTORY.owner()  # dev: only owner
 
     self.is_killed = _is_killed
+    log SetKilled(_is_killed)
 
 
 @external
