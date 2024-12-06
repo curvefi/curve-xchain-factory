@@ -804,7 +804,7 @@ def decimals() -> uint8:
     return 18
 
 
-@view
+@pure
 @external
 def version() -> String[8]:
     """
