@@ -5,7 +5,7 @@
 @license Copyright (c) Curve.Fi, 2020-2024 - all rights reserved
 @author Curve.Fi
 @notice Layer2/Cross-Chain Gauge
-@custom:version 1.0.0
+@custom:version 1.1.0
 """
 
 
@@ -17,7 +17,7 @@ interface ERC20Extended:
     def symbol() -> String[32]: view
 
 interface ERC1271:
-    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
+    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes4: view
 
 interface Factory:
     def owner() -> address: view
@@ -80,9 +80,9 @@ MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 604800
 
-VERSION: constant(String[8]) = "1.0.0"
+VERSION: constant(String[8]) = "1.1.0"
 
-EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)")
 EIP2612_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 
@@ -96,6 +96,7 @@ allowance: public(HashMap[address, HashMap[address, uint256]])
 
 name: public(String[64])
 symbol: public(String[40])
+salt: public(bytes32)
 
 # ERC2612
 DOMAIN_SEPARATOR: public(bytes32)
@@ -183,6 +184,7 @@ def initialize(_lp_token: address, _root: address, _manager: address):
 
     self.name = name
     self.symbol = concat(symbol, "-gauge")
+    self.salt = block.prevhash
 
     self.period_timestamp[0] = block.timestamp
     self.DOMAIN_SEPARATOR = keccak256(
@@ -191,7 +193,8 @@ def initialize(_lp_token: address, _root: address, _manager: address):
             keccak256(name),
             keccak256(VERSION),
             chain.id,
-            self
+            self,
+            self.salt,
         )
     )
 
@@ -423,8 +426,8 @@ def withdraw(_value: uint256, _claim_rewards: bool = False, _receiver: address =
 
         ERC20(self.lp_token).transfer(_receiver, _value)
 
-    log Withdraw(msg.sender, _value)
-    log Transfer(msg.sender, empty(address), _value)
+        log Withdraw(msg.sender, _value)
+        log Transfer(msg.sender, empty(address), _value)
 
 
 @external
@@ -539,7 +542,7 @@ def permit(
     )
     if _owner.is_contract:
         sig: Bytes[65] = concat(_abi_encode(_r, _s), slice(convert(_v, bytes32), 31, 1))
-        assert ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL  # dev: invalid signature
+        assert convert(ERC1271(_owner).isValidSignature(digest, sig), bytes32) == ERC1271_MAGIC_VAL  # dev: invalid signature
     else:
         assert ecrecover(digest, _v, _r, _s) == _owner  # dev: invalid signature
 
@@ -702,7 +705,7 @@ def add_reward(_reward_token: address, _distributor: address):
     @param _distributor Address permitted to fund this contract with the reward token
     """
     assert msg.sender in [self.manager, FACTORY.owner()]  # dev: only manager or factory admin
-    assert _reward_token != FACTORY.crv().address  # dev: can not distinguish CRV reward from CRV emission
+    assert _reward_token not in [FACTORY.crv().address, self]  # dev: can not distinguish CRV reward from CRV emission; do not use gauge token as reward token
     assert _distributor != empty(address)  # dev: distributor cannot be zero address
 
     reward_count: uint256 = self.reward_count
