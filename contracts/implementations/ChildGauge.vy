@@ -36,11 +36,11 @@ event Withdraw:
     value: uint256
 
 event AddReward:
-    reward: address
+    reward: indexed(address)
     index: uint256
 
 event SetDistributor:
-    reward: address
+    reward: indexed(address)
     distributor: address
 
 event SetKilled:
