@@ -159,3 +159,21 @@ def test_polygonzkevm_bridger(alice, crv_token, PolygonzkEVMBridger):
     assert crv_token.balanceOf(bridge) == balance_before + 10**18
     assert "BridgeEvent" in tx.events
     assert tx.events["BridgeEvent"].values()[2:5] == [crv_token, 3, bridger]
+
+
+@pytest.skip(msg="vyper 0.4.0 not supported yet")
+def test_lz_xdao_bridger(alice, bob, crv_token, LzXdaoBridger):
+    bridge = "0xC91113B4Dd89dd20FDEECDAC82477Bc99A840355"
+    bridger = LzXdaoBridger.deploy(bridge, 56, {"from": alice})
+
+    assert bridger.check(alice) is True
+
+    crv_token.approve(bridger, 2 ** 256 - 1, {"from": alice})
+
+    balance_before = crv_token.balanceOf(alice)
+    tx = bridger.bridge(crv_token, bob, 10 ** 18, {"from": alice, "value": bridger.cost()})
+
+    assert crv_token.balanceOf(alice) == balance_before - 10 ** 18
+    assert crv_token.balanceOf(bridger) == 0
+    assert "BridgeSent" in tx.events
+    assert tx.events["BridgeSent"].values() == [bob, 10 ** 18]
