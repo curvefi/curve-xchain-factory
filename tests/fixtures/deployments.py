@@ -35,8 +35,14 @@ def lp_token(alice):
 
 
 @pytest.fixture(scope="module")
-def reward_token(alice):
-    return ERC20("Dummy Reward Token", "dRT", 18, deployer=alice)
+@pytest.mark.parametrize("type_", ["separate", "lp_token"])
+def reward_token(alice, type_, lp_token):
+    if type_ == "separate":
+        return ERC20("Dummy Reward Token", "dRT", 18, deployer=alice)
+    elif type_ == "lp_token":
+        return lp_token
+    else:
+        raise ValueError(f"Unknown type: {type_}")
 
 
 @pytest.fixture(scope="module")
