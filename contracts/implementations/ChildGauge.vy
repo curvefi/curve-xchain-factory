@@ -5,7 +5,7 @@
 @license Copyright (c) Curve.Fi, 2020-2024 - all rights reserved
 @author Curve.Fi
 @notice Layer2/Cross-Chain Gauge
-@custom:version 1.0.0
+@custom:version 1.1.0
 """
 
 
@@ -13,12 +13,11 @@ from vyper.interfaces import ERC20
 
 implements: ERC20
 
-
 interface ERC20Extended:
     def symbol() -> String[32]: view
 
 interface ERC1271:
-    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes32: view
+    def isValidSignature(_hash: bytes32, _signature: Bytes[65]) -> bytes4: view
 
 interface Factory:
     def owner() -> address: view
@@ -35,6 +34,17 @@ event Deposit:
 event Withdraw:
     provider: indexed(address)
     value: uint256
+
+event AddReward:
+    reward: indexed(address)
+    index: uint256
+
+event SetDistributor:
+    reward: indexed(address)
+    distributor: address
+
+event SetKilled:
+    is_killed: bool
 
 event UpdateLiquidityLimit:
     user: indexed(address)
@@ -70,9 +80,9 @@ MAX_REWARDS: constant(uint256) = 8
 TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 604800
 
-VERSION: constant(String[8]) = "1.0.0"
+VERSION: constant(String[8]) = "1.1.0"
 
-EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)")
 EIP2612_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 
@@ -86,6 +96,7 @@ allowance: public(HashMap[address, HashMap[address, uint256]])
 
 name: public(String[64])
 symbol: public(String[40])
+salt: public(bytes32)
 
 # ERC2612
 DOMAIN_SEPARATOR: public(bytes32)
@@ -111,7 +122,7 @@ rewards_receiver: public(HashMap[address, address])
 # reward token -> claiming address -> integral
 reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
 
-# user -> [uint128 claimable amount][uint128 claimed amount]
+# user -> token -> [uint128 claimable amount][uint128 claimed amount]
 claim_data: HashMap[address, HashMap[address, uint256]]
 
 working_balances: public(HashMap[address, uint256])
@@ -142,6 +153,10 @@ root_gauge: public(address)
 
 @external
 def __init__(_factory: Factory):
+    """
+    @notice Deployer
+    @param _factory Factory for deploying this gauge
+    """
     self.lp_token = 0x000000000000000000000000000000000000dEaD
 
     FACTORY = _factory
@@ -149,11 +164,18 @@ def __init__(_factory: Factory):
 
 @external
 def initialize(_lp_token: address, _root: address, _manager: address):
+    """
+    @notice Initiailize contract created as proxy
+    @param _lp_token Token to lock in
+    @param _root Address of mirror Root gauge
+    @param _manager Manager of rewards for the gauge
+    """
     assert self.lp_token == empty(address)  # dev: already initialized
 
     self.lp_token = _lp_token
     self.root_gauge = _root
     self.manager = _manager
+    log SetGaugeManager(_manager)
 
     self.voting_escrow = Factory(msg.sender).voting_escrow()
 
@@ -162,6 +184,7 @@ def initialize(_lp_token: address, _root: address, _manager: address):
 
     self.name = name
     self.symbol = concat(symbol, "-gauge")
+    self.salt = block.prevhash
 
     self.period_timestamp[0] = block.timestamp
     self.DOMAIN_SEPARATOR = keccak256(
@@ -170,7 +193,8 @@ def initialize(_lp_token: address, _root: address, _manager: address):
             keccak256(name),
             keccak256(VERSION),
             chain.id,
-            self
+            self,
+            self.salt,
         )
     )
 
@@ -291,7 +315,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
 def _update_liquidity_limit(_user: address, _user_balance: uint256, _total_supply: uint256):
     """
     @notice Calculate working balances to apply amplification of CRV production.
-    @dev https://resources.curve.fi/guides/boosting-your-crv-rewards#formula
+    @dev https://resources.curve.fi/reward-gauges/boosting-your-crv-rewards/#boost-info
     @param _user The user address
     @param _user_balance User's amount of liquidity (LP tokens)
     @param _total_supply Total amount of liquidity (LP tokens)
@@ -351,6 +375,7 @@ def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool =
     @dev Depositting also claims pending reward tokens
     @param _value Number of tokens to deposit
     @param _addr Address to deposit for
+    @param _claim_rewards Whether to claim already accrued rewards
     """
     assert _addr != empty(address)  # dev: cannot deposit for zero address
     self._checkpoint(_addr)
@@ -401,8 +426,8 @@ def withdraw(_value: uint256, _claim_rewards: bool = False, _receiver: address =
 
         ERC20(self.lp_token).transfer(_receiver, _value)
 
-    log Withdraw(msg.sender, _value)
-    log Transfer(msg.sender, empty(address), _value)
+        log Withdraw(msg.sender, _value)
+        log Transfer(msg.sender, empty(address), _value)
 
 
 @external
@@ -424,11 +449,12 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = empty(addres
 @nonreentrant('lock')
 def transferFrom(_from: address, _to :address, _value: uint256) -> bool:
     """
-     @notice Transfer tokens from one address to another.
-     @dev Transferring claims pending reward tokens for the sender and receiver
-     @param _from address The address which you want to send tokens from
-     @param _to address The address which you want to transfer to
-     @param _value uint256 the amount of tokens to be transferred
+    @notice Transfer tokens from one address to another.
+    @dev Transferring claims pending reward tokens for the sender and receiver
+    @param _from address The address which you want to send tokens from
+    @param _to address The address which you want to transfer to
+    @param _value uint256 the amount of tokens to be transferred
+    @return True if transfer passed
     """
     _allowance: uint256 = self.allowance[_from][msg.sender]
     if _allowance != max_value(uint256):
@@ -447,6 +473,7 @@ def transfer(_to: address, _value: uint256) -> bool:
     @dev Transferring claims pending reward tokens for the sender and receiver
     @param _to The address to transfer to.
     @param _value The amount to be transferred.
+    @return True if transfer passed
     """
     self._transfer(msg.sender, _to, _value)
 
@@ -515,7 +542,7 @@ def permit(
     )
     if _owner.is_contract:
         sig: Bytes[65] = concat(_abi_encode(_r, _s), slice(convert(_v, bytes32), 31, 1))
-        assert ERC1271(_owner).isValidSignature(digest, sig) == ERC1271_MAGIC_VAL  # dev: invalid signature
+        assert convert(ERC1271(_owner).isValidSignature(digest, sig), bytes32) == ERC1271_MAGIC_VAL  # dev: invalid signature
     else:
         assert ecrecover(digest, _v, _r, _s) == _owner  # dev: invalid signature
 
@@ -652,6 +679,7 @@ def deposit_reward_token(_reward_token: address, _amount: uint256, _epoch: uint2
 
 
 @external
+@nonreentrant("lock")
 def recover_remaining(_reward_token: address):
     """
     @notice Recover reward token remaining after calculation errors. Helpful for small decimal tokens.
@@ -677,7 +705,7 @@ def add_reward(_reward_token: address, _distributor: address):
     @param _distributor Address permitted to fund this contract with the reward token
     """
     assert msg.sender in [self.manager, FACTORY.owner()]  # dev: only manager or factory admin
-    assert _reward_token != FACTORY.crv().address  # dev: can not distinguish CRV reward from CRV emission
+    assert _reward_token not in [FACTORY.crv().address, self]  # dev: can not distinguish CRV reward from CRV emission; do not use gauge token as reward token
     assert _distributor != empty(address)  # dev: distributor cannot be zero address
 
     reward_count: uint256 = self.reward_count
@@ -687,6 +715,8 @@ def add_reward(_reward_token: address, _distributor: address):
     self.reward_data[_reward_token].distributor = _distributor
     self.reward_tokens[reward_count] = _reward_token
     self.reward_count = reward_count + 1
+    log AddReward(_reward_token, reward_count)
+    log SetDistributor(_reward_token, _distributor)
 
 
 @external
@@ -703,6 +733,7 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
     assert _distributor != empty(address)
 
     self.reward_data[_reward_token].distributor = _distributor
+    log SetDistributor(_reward_token, _distributor)
 
 
 @external
@@ -715,6 +746,7 @@ def set_killed(_is_killed: bool):
     assert msg.sender == FACTORY.owner()  # dev: only owner
 
     self.is_killed = _is_killed
+    log SetKilled(_is_killed)
 
 
 @external
@@ -779,6 +811,7 @@ def claimable_tokens(addr: address) -> uint256:
     """
     @notice Get the number of claimable tokens per user
     @dev This function should be manually changed to "view" in the ABI
+    @param addr User to check for
     @return uint256 number of claimable tokens per user
     """
     self._checkpoint(addr)
@@ -790,26 +823,28 @@ def claimable_tokens(addr: address) -> uint256:
 def integrate_checkpoint() -> uint256:
     """
     @notice Get the timestamp of the last checkpoint
+    @return Integral value
     """
     return self.period_timestamp[self.period]
 
 
 @view
 @external
-def decimals() -> uint256:
+def decimals() -> uint8:
     """
     @notice Get the number of decimals for this token
     @dev Implemented as a view method to reduce gas costs
-    @return uint256 decimal places
+    @return uint8 decimal places
     """
     return 18
 
 
-@view
+@pure
 @external
 def version() -> String[8]:
     """
     @notice Get the version of this gauge contract
+    @return Version in x.x.x format
     """
     return VERSION
 
@@ -819,5 +854,6 @@ def version() -> String[8]:
 def factory() -> Factory:
     """
     @notice Get factory of this gauge
+    @return address of factory
     """
     return FACTORY
