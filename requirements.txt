@@ -79,7 +79,7 @@ eth-account==0.10.0
     #   eip712
     #   eth-brownie
     #   web3
-eth-brownie==1.20.3
+eth-brownie==1.20.6
     # via
     #   -r requirements.in
     #   brownie-token-tester
@@ -129,8 +129,10 @@ execnet==2.0.2
     # via
     #   eth-brownie
     #   pytest-xdist
-filelock==3.14.0
-    # via virtualenv
+filelock==3.32.7
+    # via
+    #   python-discovery
+    #   virtualenv
 flake8==3.9.2
     # via -r requirements.in
 frozenlist==1.4.1
@@ -268,6 +270,8 @@ pytest-forked==1.6.0
     #   pytest-xdist
 pytest-xdist==1.34.0
     # via eth-brownie
+python-discovery==1.6.1
+    # via virtualenv
 python-dotenv==0.16.0
     # via eth-brownie
 pyunormalize==15.1.0
@@ -337,7 +341,7 @@ urllib3==2.2.1
     # via
     #   eth-brownie
     #   requests
-virtualenv==20.26.2
+virtualenv==21.7.13
     # via pre-commit
 vvm==0.1.0
     # via eth-brownie
