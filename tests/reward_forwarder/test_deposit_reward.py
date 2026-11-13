@@ -104,3 +104,27 @@ def test_reward_claim_when_reward_rate_is_zero(
     assert reward_token.balanceOf(alice) == 0
     child_gauge.claim_rewards({"from": alice})
     assert reward_token.balanceOf(alice) > 0  # even if rate is zero, user can claim.
+
+
+def test_reward_deposit_is_capped(
+    alice, bob, chain, child_gauge, reward_forwarder, reward_token
+):
+    cap = 2**96
+    reward_forwarder.allow(reward_token, {"from": alice})
+    child_gauge.add_reward(reward_token, reward_forwarder, {"from": bob})
+    reward_token._mint_for_testing(reward_forwarder, cap + 10**24, {"from": alice})
+
+    # only what fits under the gauge's cap is forwarded, the rest stays
+    reward_forwarder.deposit_reward_token(reward_token, {"from": alice})
+    assert reward_token.balanceOf(child_gauge) == cap
+    assert reward_token.balanceOf(reward_forwarder) == 10**24
+
+    # no room: nothing is forwarded, the call does not revert
+    reward_forwarder.deposit_reward_token(reward_token, {"from": alice})
+    assert reward_token.balanceOf(reward_forwarder) == 10**24
+
+    # distribution frees room for the rest
+    chain.sleep(WEEK // 2)
+    reward_forwarder.deposit_reward_token(reward_token, {"from": alice})
+    assert reward_token.balanceOf(reward_forwarder) == 0
+    assert child_gauge.reward_remaining(reward_token) <= cap
