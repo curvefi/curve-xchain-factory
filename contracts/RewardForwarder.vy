@@ -1,10 +1,15 @@
 # pragma version 0.3.10
 """
 @title Reward Forwarder
-@custom:version 0.0.1
+@custom:version 0.1.0
 """
 
-version: public(constant(String[8])) = "0.0.1"
+# Updated from 0.0.1:
+# - forwards at most what fits under the gauge's cap on undistributed rewards (2**96),
+#   the rest stays here for the next call instead of making the deposit revert
+# - nothing to forward (empty balance or no room) is a no-op instead of a zero deposit,
+#   which restarted the distribution period of the gauge
+version: public(constant(String[8])) = "0.1.0"
 
 
 from vyper.interfaces import ERC20
@@ -13,6 +18,9 @@ from vyper.interfaces import ERC20
 interface Gauge:
     def deposit_reward_token(_reward_token: address, _amount: uint256): nonpayable
 
+
+# Gauge reverts when the undistributed reward together with a new deposit exceeds this
+MAX_REWARD: constant(uint256) = 2 ** (64 + 32)
 
 GAUGE: immutable(address)
 
@@ -31,8 +39,41 @@ def deposit_reward_token(_reward_token: address):
         gauge, else the tx will fail.
     @dev Any user can forward deposited reward tokens to a gauge, after calling
         `allow`.
+    @dev Forwards the balance up to the room left under the gauge's reward cap; what
+        does not fit stays in this contract and can be forwarded later.
+    @dev Does nothing when there is nothing to forward or no room for it.
     """
-    Gauge(GAUGE).deposit_reward_token(_reward_token, ERC20(_reward_token).balanceOf(self))
+    amount: uint256 = min(ERC20(_reward_token).balanceOf(self), self._max_deposit(_reward_token))
+    if amount == 0:
+        # A zero deposit would only restart the gauge's distribution period
+        return
+    Gauge(GAUGE).deposit_reward_token(_reward_token, amount)
+
+
+@view
+@internal
+def _max_deposit(_reward_token: address) -> uint256:
+    """
+    @dev Room under the cap by the stored `reward_remaining`. The gauge checkpoints
+        before a deposit and that only frees more room, so this is a lower bound.
+        Gauges without `reward_remaining` (no undistributed carry) are treated as empty.
+    """
+    success: bool = False
+    response: Bytes[32] = b""
+    success, response = raw_call(
+        GAUGE,
+        _abi_encode(_reward_token, method_id=method_id("reward_remaining(address)")),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False,
+    )
+    remaining: uint256 = 0
+    if success and len(response) == 32:
+        remaining = convert(response, uint256)
+
+    if remaining >= MAX_REWARD:
+        return 0
+    return MAX_REWARD - remaining
 
 
 @external

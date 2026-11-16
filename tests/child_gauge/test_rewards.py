@@ -135,3 +135,88 @@ def test_reward_remaining(alice, bob, charlie, child_gauge, reward_token, lp_tok
 
     child_gauge.recover_remaining(reward_token, {"from": charlie})
     assert reward_token.balanceOf(bob) == remaining
+
+
+def test_deposit_reward_token_cap(alice, child_gauge, reward_token):
+    cap = 2 ** 96
+    reward_token._mint_for_testing(alice, cap + 1, {"from": alice})
+    reward_token.approve(child_gauge, 2 ** 256 - 1, {"from": alice})
+    child_gauge.add_reward(reward_token, alice, {"from": alice})
+
+    with brownie.reverts("Reward overflow"):
+        child_gauge.deposit_reward_token(reward_token, cap + 1, {"from": alice})
+
+    child_gauge.deposit_reward_token(reward_token, cap, {"from": alice})
+    with brownie.reverts("Reward overflow"):
+        child_gauge.deposit_reward_token(reward_token, 1, {"from": alice})
+
+
+def _start_rewards(alice, chain, child_gauge, lp_token, tokens, amount=10 ** 21):
+    lp_token._mint_for_testing(alice, 10 ** 18, {"from": alice})
+    lp_token.approve(child_gauge, 10 ** 18, {"from": alice})
+    child_gauge.deposit(10 ** 18, {"from": alice})
+
+    for token in tokens:
+        token._mint_for_testing(alice, amount, {"from": alice})
+        token.approve(child_gauge, amount, {"from": alice})
+        child_gauge.add_reward(token, alice, {"from": alice})
+        child_gauge.deposit_reward_token(token, amount, {"from": alice})
+    chain.sleep(WEEK + 1)
+
+
+def test_claim_selected_rewards(
+    alice, bob, chain, child_gauge, lp_token, reward_token, unauthorised_token
+):
+    other_token = unauthorised_token
+    _start_rewards(alice, chain, child_gauge, lp_token, [reward_token, other_token])
+
+    child_gauge.claim_rewards(alice, bob, [reward_token], {"from": alice})
+    assert reward_token.balanceOf(bob) > 0
+    assert other_token.balanceOf(bob) == 0
+
+    pending = child_gauge.claimable_reward(alice, other_token)
+    assert pending > 0
+
+    child_gauge.claim_rewards(alice, bob, {"from": alice})
+    assert other_token.balanceOf(bob) == pending
+
+
+def test_set_reward_invalidated_admin_only(alice, bob, charlie, chain, child_gauge, reward_token):
+    child_gauge.set_manager(bob, {"from": alice})
+
+    with brownie.reverts():  # not a reward
+        child_gauge.set_reward_invalidated(reward_token, True, {"from": alice})
+
+    child_gauge.add_reward(reward_token, charlie, {"from": alice})
+    for acct in [alice, bob]:
+        child_gauge.set_reward_invalidated(reward_token, True, {"from": acct})
+        assert child_gauge.invalidated_reward(reward_token)
+        chain.undo()
+
+    with brownie.reverts():
+        child_gauge.set_reward_invalidated(reward_token, True, {"from": charlie})
+
+
+def test_invalidated_reward_skipped_by_default(
+    alice, bob, chain, child_gauge, lp_token, reward_token, unauthorised_token
+):
+    other_token = unauthorised_token
+    _start_rewards(alice, chain, child_gauge, lp_token, [reward_token, other_token])
+    child_gauge.set_reward_invalidated(other_token, True, {"from": alice})
+
+    # skipped in default claims, keeps accruing
+    child_gauge.claim_rewards(alice, bob, {"from": alice})
+    child_gauge.withdraw(10 ** 17, True, {"from": alice})
+    assert reward_token.balanceOf(bob) > 0
+    assert other_token.balanceOf(alice) + other_token.balanceOf(bob) == 0
+
+    pending = child_gauge.claimable_reward(alice, other_token)
+    assert pending > 0
+
+    # claimable explicitly
+    child_gauge.claim_rewards(alice, bob, [other_token], {"from": alice})
+    assert other_token.balanceOf(bob) == pending
+
+    # reversible
+    child_gauge.set_reward_invalidated(other_token, False, {"from": alice})
+    assert not child_gauge.invalidated_reward(other_token)
