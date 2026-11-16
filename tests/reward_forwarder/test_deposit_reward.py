@@ -80,7 +80,7 @@ def test_reward_deposit_revert_for_unauthorised_token(
         reward_forwarder.deposit_reward_token(unauthorised_token, {"from": charlie})
 
 
-def test_reward_claim_when_reward_rate_is_zero(
+def test_empty_forward_keeps_schedule(
     alice,
     bob,
     charlie,
@@ -91,19 +91,43 @@ def test_reward_claim_when_reward_rate_is_zero(
     setup_with_deposited_rewards,
 ):
 
-    chain.sleep(WEEK + 1)  # sleep for 1 week and 1 second
+    chain.sleep(WEEK // 2)
+    rate = child_gauge.reward_data(reward_token)["rate"]
+    period_finish = child_gauge.reward_data(reward_token)["period_finish"]
 
-    # reward forwarder has zero balance. Transferring zero reward tokens.
+    # reward forwarder has zero balance: nothing is deposited, the distribution is not restarted
     reward_forwarder.deposit_reward_token(reward_token, {"from": charlie})
 
-    # Every deposit of a reward token checkpoints reward distribution, updating integrals for users
-    # Token distribution rate should become zero:
-    assert child_gauge.reward_data(reward_token)[2] == 0
+    assert child_gauge.reward_data(reward_token)["rate"] == rate
+    assert child_gauge.reward_data(reward_token)["period_finish"] == period_finish
 
     # check alice's balance before and after claims:
     assert reward_token.balanceOf(alice) == 0
     child_gauge.claim_rewards({"from": alice})
-    assert reward_token.balanceOf(alice) > 0  # even if rate is zero, user can claim.
+    assert reward_token.balanceOf(alice) > 0
+
+
+def test_forwarder_with_gauge_tokens_receives_no_rewards(
+    alice,
+    bob,
+    charlie,
+    child_gauge,
+    chain,
+    reward_forwarder,
+    reward_token,
+    setup_with_deposited_rewards,
+):
+
+    child_gauge.transfer(reward_forwarder, 10**20, {"from": alice})
+    chain.sleep(WEEK // 2)
+
+    # forwarding does not claim the forwarder's own rewards
+    reward_token.transfer(reward_forwarder, 10**20, {"from": charlie})
+    reward_forwarder.deposit_reward_token(reward_token, {"from": charlie})
+
+    assert reward_token.balanceOf(reward_forwarder) == 0
+    assert reward_token.balanceOf(child_gauge) == 2 * 10**20
+    assert child_gauge.claimable_reward(reward_forwarder, reward_token) > 0
 
 
 def test_reward_deposit_is_capped(
@@ -119,12 +143,15 @@ def test_reward_deposit_is_capped(
     assert reward_token.balanceOf(child_gauge) == cap
     assert reward_token.balanceOf(reward_forwarder) == 10**24
 
-    # no room: nothing is forwarded, the call does not revert
+    # no room: nothing is forwarded, the call does not revert and keeps the schedule
+    period_finish = child_gauge.reward_data(reward_token)["period_finish"]
     reward_forwarder.deposit_reward_token(reward_token, {"from": alice})
     assert reward_token.balanceOf(reward_forwarder) == 10**24
+    assert child_gauge.reward_data(reward_token)["period_finish"] == period_finish
 
-    # distribution frees room for the rest
+    # distribution frees room once the gauge is checkpointed (any deposit, withdrawal or claim)
     chain.sleep(WEEK // 2)
+    child_gauge.claim_rewards({"from": alice})
     reward_forwarder.deposit_reward_token(reward_token, {"from": alice})
     assert reward_token.balanceOf(reward_forwarder) == 0
     assert child_gauge.reward_remaining(reward_token) <= cap
